@@ -1,0 +1,4 @@
+*.jar
+
+.ipynb_checkpoints/
+venv/
