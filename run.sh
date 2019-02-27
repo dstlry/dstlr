@@ -35,11 +35,7 @@ export PYSPARK_PYTHON=venv/bin/python
 ###
 
 # Start Neo4j
-docker run --name $NEO4J_NAME -d --publish=7474:7474 --publish=7687:7687 \
-    --volume=$NEO4J_DATA_DIR/conf:/conf \
-    --volume=$NEO4J_DATA_DIR/data:/data \
-    --volume=$NEO4J_DATA_DIR/logs:/logs \
-    neo4j
+docker run -d --publish=7474:7474 --publish=7687:7687 --volume=$NEO4J_DIR:/data neo4j
 
 # Install (or update) Apache Toree kernel
 jupyter toree install --user --spark_opts="--num-executors $SPARK_NUM_EXECUTORS --executor-cores $SPARK_EXECUTOR_CORES --executor-memory $SPARK_EXECUTOR_MEMORY --driver-memory $SPARK_DRIVER_MEMORY"

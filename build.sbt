@@ -19,5 +19,8 @@ libraryDependencies += "edu.stanford.nlp" % "stanford-corenlp" % "3.9.2" classif
 // https://mvnrepository.com/artifact/org.neo4j.driver/neo4j-java-driver
 libraryDependencies += "org.neo4j.driver" % "neo4j-java-driver" % "1.7.2"
 
+// https://mvnrepository.com/artifact/org.rogach/scallop
+libraryDependencies += "org.rogach" %% "scallop" % "3.1.5"
+
 // https://mvnrepository.com/artifact/org.slf4j/slf4j-simple
 libraryDependencies += "org.slf4j" % "slf4j-simple" % "1.7.25"
