@@ -62,9 +62,7 @@ object Main {
         sent.relations().foreach(relation => {
           session.run(buildPredicate(id, uuids, relation))
         })
-
       })
-
     })
 
     session.close()
@@ -92,23 +90,19 @@ object Main {
     val sub = uuids.getOrDefault(triple.subjectGloss(), null).toString
     val rel = triple.relationGloss().split(":")(1).toUpperCase()
     val obj = uuids.getOrDefault(triple.objectGloss(), null).toString
-    new Statement(s"MERGE (s:Entity {id:'${sub}'}) MERGE (o:Entity {id:'${obj}'}) CREATE (s)-[r:${rel} {doc:[${doc}]}]->(o) RETURN s, r, o")
-    //      session.run(
-    //        s"""
-    //           |MERGE (s:Entity {id:'${sub}'})
-    //           |MERGE (o:Entity {id:'${obj}'})
-    //           |WITH s, o
-    //           |
-    //         """.stripMargin)
+    new Statement(s"""
+         |MATCH (s:Entity {id:'${sub}'}),(o:Entity {id:'${obj}'})
+         |MERGE (s)-[r:${rel}]->(o)
+         |ON CREATE SET r.docs = ['${doc}']
+         |ON MATCH SET r.docs = r.docs + ['${doc}']
+       """.stripMargin)
   }
 
   def generateDocs(): List[CoreDocument] = {
     val docs = new ListBuffer[CoreDocument]()
-    docs += new CoreDocument("Barack Obama was born in 1961.")
-    docs += new CoreDocument("Barack Obama was born in 1961.")
-    // docs += new CoreDocument("Barack Obama lives in Hawaii. He was born in 1961.")
-    // docs += new CoreDocument("Apple is a company based in Cupertino.")
-    // docs += new CoreDocument("Bill Clinton is married to Hillary Clinton.")
+    docs += new CoreDocument("Barack Obama is from Hawaii. He was born in 1961.")
+    docs += new CoreDocument("Apple is a company based in Cupertino.")
+    docs += new CoreDocument("Bill Clinton is married to Hillary Clinton.")
     docs.toList
   }
 
