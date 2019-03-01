@@ -9,7 +9,7 @@ import org.neo4j.driver.v1.{AuthTokens, GraphDatabase, Statement}
 import scala.collection.JavaConversions._
 import scala.collection.mutable.{ListBuffer, Map}
 
-object Main {
+object Local {
 
   def main(args: Array[String]): Unit = {
 
