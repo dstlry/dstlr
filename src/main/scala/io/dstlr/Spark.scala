@@ -9,7 +9,7 @@ import org.apache.spark.SparkContext
 import org.neo4j.driver.v1.{AuthTokens, GraphDatabase, Statement}
 
 import scala.collection.JavaConversions._
-import scala.collection.mutable.{ListBuffer, Map}
+import scala.collection.mutable.Map
 
 object Spark {
 
@@ -84,40 +84,39 @@ object Spark {
   }
 
   def buildMention(doc: String, entity: String): Statement = {
-    new Statement(s"""MERGE (d:Document {id: "${doc}"}) MERGE (e:Entity {id: "${entity}"}) MERGE (d)-[r:MENTIONS]->(e) RETURN d, r, e""")
+    val params = Map("doc" -> doc, "entity" -> entity)
+    new Statement("MERGE (d:Document {id: {doc}}) MERGE (e:Entity {id: {entity}}) MERGE (d)-[r:MENTIONS]->(e) RETURN d, r, e", params)
   }
 
   def buildHasString(entity: String, string: String): Statement = {
-    new Statement(s"""MERGE (e:Entity {id: "${entity}"}) MERGE (l:Label {value: "${string}"}) MERGE (e)-[r:HAS_STRING]->(l) RETURN e, r, l""")
+    val params = Map("entity" -> entity, "string" -> string)
+    new Statement("MERGE (e:Entity {id: {entity}}) MERGE (l:Label {value: {string}}) MERGE (e)-[r:HAS_STRING]->(l) RETURN e, r, l", params)
   }
 
   def buildIs(entity: String, entityType: String): Statement = {
-    new Statement(s"""MERGE (e:Entity {id: "${entity}"}) MERGE (t:EntityType {value: "${entityType}"}) MERGE (e)-[r:IS_A]->(t) RETURN e, r, t""")
+    val params = Map("entity" -> entity, "entityType" -> entityType)
+    new Statement("MERGE (e:Entity {id: {entity}}) MERGE (t:EntityType {value: {entityType}}) MERGE (e)-[r:IS_A]->(t) RETURN e, r, t", params)
   }
 
   def buildLinksTo(entity: String, uri: String): Statement = {
-    new Statement(s"""MERGE (e:Entity {id: "${entity}"}) MERGE (u:URI {id: "${uri}"}) MERGE (e)-[r:LINKS_TO]->(u) RETURN e, r, u""")
+    val params = Map("entity" -> entity, "uri" -> uri)
+    new Statement("MERGE (e:Entity {id: {entity}}) MERGE (u:URI {id: {uri}}) MERGE (e)-[r:LINKS_TO]->(u) RETURN e, r, u", params)
   }
 
   def buildPredicate(doc: String, uuids: Map[String, UUID], triple: RelationTriple): Statement = {
-    val sub = uuids.getOrDefault(triple.subjectGloss(), null)
     val rel = triple.relationGloss().split(":")(1).toUpperCase()
-    val obj = uuids.getOrDefault(triple.objectGloss(), null)
+    val params = Map(
+      "doc" -> doc,
+      "sub" -> uuids.getOrDefault(triple.subjectGloss(), null).toString,
+      "obj" -> uuids.getOrDefault(triple.objectGloss(), null).toString
+    )
     new Statement(
       s"""
-         |MATCH (s:Entity {id:"${sub.toString}"}),(o:Entity {id:"${obj.toString}"})
+         |MATCH (s:Entity {id:{sub}}),(o:Entity {id:{obj}})
          |MERGE (s)-[r:${rel}]->(o)
-         |ON CREATE SET r.docs = ["${doc}"]
-         |ON MATCH SET r.docs = r.docs + ["${doc}"]
-       """.stripMargin)
-  }
-
-  def generateDocs(): List[CoreDocument] = {
-    val docs = new ListBuffer[CoreDocument]()
-    docs += new CoreDocument("Barack Obama is from Hawaii. He was born in 1961.")
-    docs += new CoreDocument("Apple is a company based in Cupertino.")
-    docs += new CoreDocument("Bill Clinton is married to Hillary Clinton.")
-    docs.toList
+         |ON CREATE SET r.docs = [{doc}]
+         |ON MATCH SET r.docs = r.docs + [{doc}]
+       """.stripMargin, params)
   }
 
   def pipeline(): StanfordCoreNLP = {
@@ -128,6 +127,7 @@ object Spark {
     props.setProperty("ner.applyFineGrained", "false")
     props.setProperty("ner.applyNumericClassifiers", "false")
     props.setProperty("ner.useSUTime", "false")
+    props.setProperty("coref.algorithm", "statistical")
 
     // Build the CoreNLP pipeline
     new StanfordCoreNLP(props)
