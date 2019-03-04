@@ -19,17 +19,18 @@ object Spark {
     val conf = new Conf(args)
     println(conf.summary)
 
-    val (uri, user, pass, searchField, searchTerm, contentField) = (conf.neoUri(), conf.neoUsername(), conf.neoPassword(), conf.searchField(), conf.searchTerm(), conf.contentField())
+    val (neoUri, neoUser, neoPass, solrUri, solrIndex, searchField, searchTerm, contentField) =
+      (conf.neoUri(), conf.neoUsername(), conf.neoPassword(), conf.solrUri(), conf.solrIndex(), conf.searchField(), conf.searchTerm(), conf.contentField())
 
     val sc = new SparkContext("local[*]", "dstlr")
 
-    new SelectSolrRDD("localhost:9983", "core17", sc)
+    new SelectSolrRDD(solrUri, solrIndex, sc)
       .rows(10000)
       .query(searchField + ":" + searchTerm)
       .foreachPartition(part => {
 
         // Connect to Neo4j
-        val driver = GraphDatabase.driver(uri, AuthTokens.basic(user, pass))
+        val driver = GraphDatabase.driver(neoUri, AuthTokens.basic(neoUser, neoPass))
 
         // Remove existing nodes in graph
         val session = driver.session()
