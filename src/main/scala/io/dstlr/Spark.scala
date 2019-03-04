@@ -19,14 +19,13 @@ object Spark {
     val conf = new Conf(args)
     println(conf.summary)
 
-    val (uri, user, pass) = (conf.neoUri(), conf.neoUsername(), conf.neoPassword())
+    val (uri, user, pass, searchField, searchTerm, contentField) = (conf.neoUri(), conf.neoUsername(), conf.neoPassword(), conf.searchField(), conf.searchTerm(), conf.contentField())
 
     val sc = new SparkContext("local[*]", "dstlr")
 
     new SelectSolrRDD("localhost:9983", "core17", sc)
       .rows(10000)
-      .query("contents:Obama")
-      .splitsPerShard(8)
+      .query(searchField + ":" + searchTerm)
       .foreachPartition(part => {
 
         // Connect to Neo4j
@@ -40,7 +39,7 @@ object Spark {
 
         part.foreach(solrDoc => {
 
-          val doc = new CoreDocument(solrDoc.get("raw").toString)
+          val doc = new CoreDocument(solrDoc.get(contentField).toString)
 
           // The document ID
           val id = solrDoc.get("id").toString
