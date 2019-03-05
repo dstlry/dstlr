@@ -22,11 +22,15 @@ object Spark {
     val (neoUri, neoUser, neoPass, solrUri, solrIndex, searchField, searchTerm, contentField) =
       (conf.neoUri(), conf.neoUsername(), conf.neoPassword(), conf.solrUri(), conf.solrIndex(), conf.searchField(), conf.searchTerm(), conf.contentField())
 
-    val sc = new SparkContext("local[*]", "dstlr")
+    val sc = new SparkContext()
+
+    val start = System.currentTimeMillis()
+    val tokens = sc.longAccumulator("tokens")
 
     new SelectSolrRDD(solrUri, solrIndex, sc)
-      .rows(10000)
-      .query(searchField + ":" + searchTerm)
+      .query(s"${searchField}:${searchTerm}")
+      .rows(1000)
+      .repartition(44)
       .foreachPartition(part => {
 
         // Connect to Neo4j
@@ -45,8 +49,12 @@ object Spark {
           // The document ID
           val id = solrDoc.get("id").toString
 
+          println(s"${Thread.currentThread().getName} - doc ${id}")
+
           // Annotate the document using the CoreNLP pipeline
           nlp.annotate(doc)
+
+          tokens.add(doc.tokens().size())
 
           // Maps entity names to UUIDs
           val uuids = Map[String, UUID]()
@@ -60,9 +68,9 @@ object Spark {
               // Get or set the UUID
               val uuid = uuids.getOrElseUpdate(mention.text(), UUID.randomUUID()).toString
 
-              session.run(buildMention(id, uuid))
-              session.run(buildHasString(uuid, mention.text()))
-              session.run(buildIs(uuid, mention.entityType()))
+              //              session.run(buildMention(id, uuid))
+              //              session.run(buildHasString(uuid, mention.text()))
+              //              session.run(buildIs(uuid, mention.entityType()))
               // session.run(buildLinksTo(mention.text(), mention.entity()))
 
             })
@@ -70,7 +78,7 @@ object Spark {
             // Extract the OpenIE (KBP) triples
             sent.relations().foreach(relation => {
               if (uuids.contains(relation.subjectGloss()) && uuids.contains(relation.objectGloss())) {
-                session.run(buildPredicate(id, uuids, relation))
+                //                session.run(buildPredicate(id, uuids, relation))
               }
             })
           })
@@ -80,6 +88,9 @@ object Spark {
         driver.close()
 
       })
+
+    val duration = System.currentTimeMillis() - start
+    println(s"Took ${duration}ms @ ${tokens.value / (duration / 1000)} token/s")
 
   }
 

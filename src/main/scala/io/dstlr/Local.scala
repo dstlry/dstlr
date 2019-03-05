@@ -90,7 +90,8 @@ object Local {
     val sub = uuids.getOrDefault(triple.subjectGloss(), null).toString
     val rel = triple.relationGloss().split(":")(1).toUpperCase()
     val obj = uuids.getOrDefault(triple.objectGloss(), null).toString
-    new Statement(s"""
+    new Statement(
+      s"""
          |MATCH (s:Entity {id:'${sub}'}),(o:Entity {id:'${obj}'})
          |MERGE (s)-[r:${rel}]->(o)
          |ON CREATE SET r.docs = ['${doc}']
