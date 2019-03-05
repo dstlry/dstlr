@@ -17,7 +17,7 @@ virtualenv -p /usr/bin/python3 venv && . venv/bin/activate
 pip install -U pip
 
 # Install dependencies
-pip install -U allennlp jupyter pyspark stanfordnlp spacy toree
+pip install -U allennlp jupyter pyspark spacy toree
 
 # Download spaCy English model
 python -m spacy download en
