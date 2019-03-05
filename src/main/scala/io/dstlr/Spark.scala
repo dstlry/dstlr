@@ -19,8 +19,8 @@ object Spark {
     val conf = new Conf(args)
     println(conf.summary)
 
-    val (neoUri, neoUser, neoPass, solrUri, solrIndex, searchField, searchTerm, contentField) =
-      (conf.neoUri(), conf.neoUsername(), conf.neoPassword(), conf.solrUri(), conf.solrIndex(), conf.searchField(), conf.searchTerm(), conf.contentField())
+    val (neoUri, neoUser, neoPass, solrUri, solrIndex, searchField, searchTerm, contentField, partitions) =
+      (conf.neoUri(), conf.neoUsername(), conf.neoPassword(), conf.solrUri(), conf.solrIndex(), conf.searchField(), conf.searchTerm(), conf.contentField(), conf.partitions())
 
     val sc = new SparkContext()
 
@@ -29,8 +29,8 @@ object Spark {
 
     new SelectSolrRDD(solrUri, solrIndex, sc)
       .query(s"${searchField}:${searchTerm}")
-      .rows(1000)
-      .repartition(44)
+      .rows(10000)
+      .repartition(partitions)
       .foreachPartition(part => {
 
         // Connect to Neo4j
@@ -68,9 +68,9 @@ object Spark {
               // Get or set the UUID
               val uuid = uuids.getOrElseUpdate(mention.text(), UUID.randomUUID()).toString
 
-              //              session.run(buildMention(id, uuid))
-              //              session.run(buildHasString(uuid, mention.text()))
-              //              session.run(buildIs(uuid, mention.entityType()))
+              session.run(buildMention(id, uuid))
+              session.run(buildHasString(uuid, mention.text()))
+              session.run(buildIs(uuid, mention.entityType()))
               // session.run(buildLinksTo(mention.text(), mention.entity()))
 
             })
@@ -78,7 +78,7 @@ object Spark {
             // Extract the OpenIE (KBP) triples
             sent.relations().foreach(relation => {
               if (uuids.contains(relation.subjectGloss()) && uuids.contains(relation.objectGloss())) {
-                //                session.run(buildPredicate(id, uuids, relation))
+                session.run(buildPredicate(id, uuids, relation))
               }
             })
           })
