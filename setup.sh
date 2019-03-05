@@ -4,17 +4,21 @@
 # Configuration
 ###
 
+# The path for conda (given at installation time)
+CONDA_PATH="/home/ryan/.miniconda/etc/profile.d/conda.sh"
+
+# The spark-solr version to download
 SPARK_SOLR_VERSION=3.6.0
 
 ###
 # Setup
 ###
 
-# Setup virtualenv
-virtualenv -p /usr/bin/python3 venv && . venv/bin/activate
+# Source the conda path
+source $CONDA_PATH
 
-# Update pip
-pip install -U pip
+# Create and activate conda env
+conda create -n dstlr python=3.7 && conda activate dstlr
 
 # Install dependencies
 pip install -U allennlp jupyter pyspark spacy toree
