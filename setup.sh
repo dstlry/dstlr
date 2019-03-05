@@ -19,6 +19,9 @@ pip install -U pip
 # Install dependencies
 pip install -U allennlp jupyter pyspark spacy toree
 
+# See https://github.com/jupyter/notebook/issues/2664
+pip install "tornado<6"
+
 # Download spaCy English model
 python -m spacy download en
 
