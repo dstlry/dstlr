@@ -2,11 +2,9 @@ package io.dstlr
 
 import java.util.{Properties, UUID}
 
-import com.lucidworks.spark.rdd.SelectSolrRDD
 import edu.stanford.nlp.ie.util.RelationTriple
 import edu.stanford.nlp.pipeline.{CoreDocument, StanfordCoreNLP}
 import org.apache.hadoop.fs.{FileSystem, Path}
-import org.apache.solr.client.solrj.SolrQuery
 import org.apache.spark.sql.SparkSession
 
 import scala.collection.JavaConversions._
@@ -14,14 +12,17 @@ import scala.collection.mutable.{ListBuffer, Map}
 
 object ExtractTriples {
 
+  // Result from spark-solr
+  case class SolrRow(id: String, raw: String)
+
+  // Result of our extraction
+  case class TripleRow(doc: String, subjectType: String, subjectValue: String, relation: String, objectType: String, objectValue: String)
+
   def main(args: Array[String]): Unit = {
 
     // Setup config
     val conf = new Conf(args)
     println(conf.summary)
-
-    val (solrUri, solrIndex, searchField, searchTerm, contentField, output, rows, partitions, nlpThreads) =
-      (conf.solrUri(), conf.solrIndex(), conf.searchField(), conf.searchTerm(), conf.contentField(), conf.output(), conf.rows(), conf.partitions(), conf.nlpThreads())
 
     // Build the SparkSession
     val spark = SparkSession
@@ -30,87 +31,93 @@ object ExtractTriples {
       .master("local[*]")
       .getOrCreate()
 
-    // Get the SparkContext from the SparkSession
-    val sc = spark.sparkContext
+    // Import implicit functions from SparkSession
+    import spark.implicits._
 
     // Accumulators for keeping track of # tokens and # triples
-    val token_acc = sc.longAccumulator("tokens")
-    val triple_acc = sc.longAccumulator("triples")
+    val token_acc = spark.sparkContext.longAccumulator("tokens")
+    val triple_acc = spark.sparkContext.longAccumulator("triples")
 
-    FileSystem.get(sc.hadoopConfiguration).delete(new Path(output), true)
+    // Delete old output directory
+    FileSystem.get(spark.sparkContext.hadoopConfiguration).delete(new Path(conf.output()), true)
 
-    // The SolrQuery to execute
-    val query = new SolrQuery(searchField + ":" + searchTerm)
+    // Options for spark-solr
+    val options = Map(
+      "collection" -> conf.solrIndex(),
+      "query" -> conf.query(),
+      "rows" -> conf.rows(),
+      "zkhost" -> conf.solrUri()
+    )
 
     // Start time
     val start = System.currentTimeMillis()
 
-    val rdd = new SelectSolrRDD(solrUri, solrIndex, sc)
-      .query(query)
-      .rows(rows)
-      .repartition(partitions)
+    // Create a DataFrame with the query results
+    val df = spark.read.format("solr")
+      .options(options)
+      .load()
+
+    // Get as a DataSet
+    val ds = df.as[SolrRow]
+    ds.printSchema()
+
+    ds
+      .repartition(conf.partitions())
       .mapPartitions(part => {
 
+        // Create CoreNLP pipeline
         val nlp = pipeline()
 
-        part.map(solrDoc => {
+        part.map(row => {
 
-          // The triples extracted from the document.
-          val triples = new ListBuffer[(String, String, String, String, String, String)]()
+          println(s"Processing ${row.id}")
 
-          // Maps entity names to UUIDs, consistent within a document.
+          // The extracted triples
+          val triples = new ListBuffer[TripleRow]()
+
+          // UUIDs for entities consistent within documents
           val uuids = Map[String, UUID]()
 
-          // The document id
-          val id = solrDoc.get("id").toString
-
-          // The CoreDocument
-          val doc = new CoreDocument(solrDoc.get(contentField).toString)
-
-          // Annotate the document with our pipeline
+          // Create and annotate the CoreNLP Document
+          val doc = new CoreDocument(row.raw)
           nlp.annotate(doc)
 
-          // Increment # of tokens
+          // Increment # tokens
           token_acc.add(doc.tokens().size())
 
-          // For each sentence...
+          // For eacn sentence...
           doc.sentences().foreach(sentence => {
 
-            // Extract the "MENTIONS", "HAS_STRING", "IS_A", and "LINKS_TO" relations
+            // Extract "MENTIONS", "HAS_STRING", "IS_A", and "LINKS_TO" relations
             sentence.entityMentions().foreach(mention => {
 
               // Get or set the UUID
               val uuid = uuids.getOrElseUpdate(mention.text(), UUID.randomUUID()).toString
 
-              triples.append(buildMention(id, uuid))
-              triples.append(buildHasString(id, uuid, mention.text()))
-              triples.append(buildIs(id, uuid, mention.entityType()))
-              // triples.append(buildLinksTo(doc, uuid, mention.entity()))
+              triples.append(buildMention(row.id, uuid))
+              triples.append(buildHasString(row.id, uuid, mention.text()))
+              triples.append(buildIs(row.id, uuid, mention.entityType()))
+              // triples.append(buildLinksTo(row.id, uuid, mention.entity()))
 
             })
 
             // Extract the relations between entities.
             sentence.relations().foreach(relation => {
               if (uuids.contains(relation.subjectGloss()) && uuids.contains(relation.objectGloss())) {
-                triples.append(buildRelation(id, uuids, relation))
+                triples.append(buildRelation(row.id, uuids, relation))
               }
             })
           })
 
-          // Increment # of triples
+          // Increment # triples
           triple_acc.add(triples.size())
 
-          // Return the list of triples
           triples.toList
 
         })
       })
       .flatMap(x => x)
-
-    val df = spark.createDataFrame(rdd).toDF("doc", "subject.type", "subject.value", "relation", "object.type", "object.value")
-    df.show()
-
-    df.write.option("header", "true").csv(output)
+      .write.option("header", "true").csv(conf.output())
 
     val duration = System.currentTimeMillis() - start
     println(s"Took ${duration}ms @ ${token_acc.value / (duration / 1000)} token/s and ${triple_acc.value / (duration / 1000)} triple/sec")
@@ -119,27 +126,27 @@ object ExtractTriples {
 
   }
 
-  def buildMention(doc: String, entity: String) = {
-    (doc, "Document", doc, "MENTIONS", "Entity", entity)
+  def buildMention(doc: String, entity: String): TripleRow = {
+    new TripleRow(doc, "Document", doc, "MENTIONS", "Entity", entity)
   }
 
-  def buildHasString(doc: String, entity: String, string: String) = {
-    (doc, "Entity", entity, "HAS_STRING", "Label", string)
+  def buildHasString(doc: String, entity: String, string: String): TripleRow = {
+    new TripleRow(doc, "Entity", entity, "HAS_STRING", "Label", string)
   }
 
-  def buildIs(doc: String, entity: String, entityType: String) = {
-    (doc, "Entity", entity, "IS_A", "EntityType", entityType)
+  def buildIs(doc: String, entity: String, entityType: String): TripleRow = {
+    new TripleRow(doc, "Entity", entity, "IS_A", "EntityType", entityType)
   }
 
-  def buildLinksTo(doc: String, entity: String, uri: String) = {
-    (doc, "Entity", entity, "LINKS_TO", "URI", uri)
+  def buildLinksTo(doc: String, entity: String, uri: String): TripleRow = {
+    new TripleRow(doc, "Entity", entity, "LINKS_TO", "URI", uri)
   }
 
-  def buildRelation(doc: String, uuids: Map[String, UUID], triple: RelationTriple) = {
+  def buildRelation(doc: String, uuids: Map[String, UUID], triple: RelationTriple): TripleRow = {
     val sub = uuids.getOrDefault(triple.subjectGloss(), null).toString
     val rel = triple.relationGloss().split(":")(1).toUpperCase()
     val obj = uuids.getOrDefault(triple.objectGloss(), null).toString
-    (doc, "Entity", sub, rel, "Entity", obj)
+    new TripleRow(doc, "Entity", sub, rel, "Entity", obj)
   }
 
   def pipeline(): StanfordCoreNLP = {
