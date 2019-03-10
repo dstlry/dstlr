@@ -15,6 +15,9 @@ class Conf(args: Seq[String]) extends ScallopConf(args) {
   val searchField = opt[String](name = "search.field", default = Some("contents"))
   val searchTerm = opt[String](name = "search.term", default = Some("music"))
 
+  val output = opt[String](default = Some("triples"))
+
+  val rows = opt[Int](default = Some(10000))
   val partitions = opt[Int](default = Some(16))
   val nlpThreads = opt[String](default = Some("1"))
 
