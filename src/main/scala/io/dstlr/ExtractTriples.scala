@@ -7,7 +7,7 @@ import edu.stanford.nlp.ie.util.RelationTriple
 import edu.stanford.nlp.pipeline.{CoreDocument, StanfordCoreNLP}
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.solr.client.solrj.SolrQuery
-import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.apache.spark.sql.SparkSession
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable.{ListBuffer, Map}
@@ -118,10 +118,6 @@ object ExtractTriples {
     spark.stop()
 
   }
-
-  def wrapType(value: String, valueType: String) = value + ":" + valueType
-
-  def wrapQuotes(text: String) = "\"" + text + "\""
 
   def buildMention(doc: String, entity: String) = {
     (doc, "Document", doc, "MENTIONS", "Entity", entity)
