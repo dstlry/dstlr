@@ -9,7 +9,7 @@ class Conf(args: Seq[String]) extends ScallopConf(args) with Serialization {
   val solrIndex = opt[String](name = "solr.index", default = Some("core17"))
   val query = opt[String](name = "query", default = Some("contents:firetruck"))
   val rows = opt[String](default = Some("10000"))
-  val partitions = opt[Int](default = Some(8))
+  val partitions = opt[Int](default = Some(16))
 
   // CoreNLP
   val nlpThreads = opt[String](default = Some("1"))

@@ -61,12 +61,12 @@ object ExtractTriples {
     val ds = df.as[SolrRow]
     ds.printSchema()
 
-    ds
+    val result = ds
       .repartition(conf.partitions())
       .mapPartitions(part => {
 
         // Create CoreNLP pipeline
-        val nlp = pipeline()
+        val nlp = pipeline(conf)
 
         part.map(row => {
 
@@ -117,7 +117,9 @@ object ExtractTriples {
         })
       })
       .flatMap(x => x)
-      .write.option("header", "true").csv(conf.output())
+
+    // Write to CSV
+    result.write.option("header", "true").csv(conf.output())
 
     val duration = System.currentTimeMillis() - start
     println(s"Took ${duration}ms @ ${token_acc.value / (duration / 1000)} token/s and ${triple_acc.value / (duration / 1000)} triple/sec")
@@ -149,7 +151,7 @@ object ExtractTriples {
     new TripleRow(doc, "Entity", sub, rel, "Entity", obj)
   }
 
-  def pipeline(): StanfordCoreNLP = {
+  def pipeline(conf: Conf): StanfordCoreNLP = {
 
     // Properties for CoreNLP
     val props = new Properties()
@@ -158,6 +160,7 @@ object ExtractTriples {
     props.setProperty("ner.applyNumericClassifiers", "false")
     props.setProperty("ner.useSUTime", "false")
     props.setProperty("coref.algorithm", "statistical")
+    props.setProperty("threads", conf.nlpThreads())
 
     // Build the CoreNLP pipeline
     new StanfordCoreNLP(props)
