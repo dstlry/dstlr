@@ -16,7 +16,7 @@ import scala.collection.mutable.{ListBuffer, Map}
 object ExtractTriples {
 
   // Result from spark-solr
-  case class SolrRow(id: String, raw: String)
+  case class SolrRow(id: String, contents: String)
 
   // Result of our extraction
   case class TripleRow(doc: String, subjectType: String, subjectValue: String, relation: String, objectType: String, objectValue: String)
@@ -31,7 +31,6 @@ object ExtractTriples {
     val spark = SparkSession
       .builder()
       .appName("dstlr")
-      .master("local[*]")
       .getOrCreate()
 
     // Import implicit functions from SparkSession
@@ -82,7 +81,7 @@ object ExtractTriples {
           val uuids = Map[String, UUID]()
 
           // Create and annotate the CoreNLP Document
-          val doc = new CoreDocument(row.raw)
+          val doc = new CoreDocument(row.contents)
           nlp.annotate(doc)
 
           // Increment # tokens
