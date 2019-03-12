@@ -12,7 +12,7 @@ class Conf(args: Seq[String]) extends ScallopConf(args) with Serialization {
   val partitions = opt[Int](default = Some(8))
 
   // CoreNLP
-  val nlpThreads = opt[String](default = Some("1"))
+  val nlpThreads = opt[String](default = Some("2"))
 
   // Neo4j
   val neoUri = opt[String](name = "neo4j.uri", default = Some("bolt://localhost:7687"))
