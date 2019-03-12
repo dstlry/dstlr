@@ -9,7 +9,7 @@ mainClass in assembly := Some("io.dstlr.Spark")
 resolvers += "Restlet Repository" at "http://maven.restlet.org"
 
 // https://mvnrepository.com/artifact/com.lucidworks.spark/spark-solr
-libraryDependencies += "com.lucidworks.spark" % "spark-solr" % "3.6.0"
+libraryDependencies += "com.lucidworks.spark" % "spark-solr" % "3.6.0" exclude("org.slf4j", "slf4j-log4j12") exclude("org.apache.logging.log4j", "log4j-slf4j-impl")
 
 // https://mvnrepository.com/artifact/edu.stanford.nlp/stanford-corenlp
 libraryDependencies += "edu.stanford.nlp" % "stanford-corenlp" % "3.9.2"
@@ -26,6 +26,9 @@ libraryDependencies += "org.rogach" %% "scallop" % "3.1.5"
 
 // https://mvnrepository.com/artifact/org.slf4j/slf4j-simple
 libraryDependencies += "org.slf4j" % "slf4j-simple" % "1.7.25"
+
+// https://mvnrepository.com/artifact/org.wikidata.wdtk/wdtk-wikibaseapi
+libraryDependencies += "org.wikidata.wdtk" % "wdtk-wikibaseapi" % "0.9.0"
 
 assemblyMergeStrategy in assembly := {
   case PathList("META-INF", xs @ _*) => MergeStrategy.discard

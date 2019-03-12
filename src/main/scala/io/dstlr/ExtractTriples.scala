@@ -10,6 +10,9 @@ import org.apache.spark.sql.SparkSession
 import scala.collection.JavaConversions._
 import scala.collection.mutable.{ListBuffer, Map}
 
+/**
+  * Extract raw triples from documents on Solr using CoreNLP.
+  */
 object ExtractTriples {
 
   // Result from spark-solr
@@ -70,7 +73,7 @@ object ExtractTriples {
 
         part.map(row => {
 
-          println(s"Processing ${row.id}")
+          println(s"Processing ${row.id} on ${Thread.currentThread().getName()}")
 
           // The extracted triples
           val triples = new ListBuffer[TripleRow]()
@@ -97,7 +100,7 @@ object ExtractTriples {
               triples.append(buildMention(row.id, uuid))
               triples.append(buildHasString(row.id, uuid, mention.text()))
               triples.append(buildIs(row.id, uuid, mention.entityType()))
-              // triples.append(buildLinksTo(row.id, uuid, mention.entity()))
+              triples.append(buildLinksTo(row.id, uuid, mention.entity()))
 
             })
 
@@ -155,7 +158,7 @@ object ExtractTriples {
 
     // Properties for CoreNLP
     val props = new Properties()
-    props.setProperty("annotators", "tokenize,ssplit,pos,depparse,lemma,ner,coref,kbp") // entitylink
+    props.setProperty("annotators", "tokenize,ssplit,pos,depparse,lemma,ner,coref,kbp,entitylink")
     props.setProperty("ner.applyFineGrained", "false")
     props.setProperty("ner.applyNumericClassifiers", "false")
     props.setProperty("ner.useSUTime", "false")
