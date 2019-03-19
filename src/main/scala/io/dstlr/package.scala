@@ -7,7 +7,8 @@ package object dstlr {
 
   // Result of our extraction
   case class TripleRow(doc: String, subjectType: String, subjectValue: String, relation: String, objectType: String, objectValue: String)
-  
+
+  // Mapping from WikiData properties to our relation names
   case class WikiDataMappingRow(property: String, relation: String)
 
 }

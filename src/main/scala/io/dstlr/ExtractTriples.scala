@@ -10,6 +10,20 @@ import org.apache.spark.sql.SparkSession
 import scala.collection.JavaConversions._
 import scala.collection.mutable.{ListBuffer, Map}
 
+object CoreNLP {
+
+  @transient lazy val nlp = new StanfordCoreNLP(props)
+
+  val props = new Properties()
+  props.setProperty("annotators", "tokenize,ssplit,pos,depparse,lemma,ner,coref,kbp,entitylink")
+  props.setProperty("ner.applyFineGrained", "false")
+  props.setProperty("ner.applyNumericClassifiers", "false")
+  props.setProperty("ner.useSUTime", "false")
+  props.setProperty("coref.algorithm", "statistical")
+  props.setProperty("threads", "32")
+
+}
+
 /**
   * Extract raw triples from documents on Solr using CoreNLP.
   */
@@ -58,59 +72,52 @@ object ExtractTriples {
     ds.printSchema()
 
     val result = ds
-      .repartition(conf.partitions())
-      .mapPartitions(part => {
+      .map(row => {
 
-        // Create CoreNLP pipeline
-        val nlp = pipeline(conf)
+        println(s"Processing ${row.id} on ${Thread.currentThread().getName()}")
 
-        part.map(row => {
+        // The extracted triples
+        val triples = new ListBuffer[TripleRow]()
 
-          println(s"Processing ${row.id} on ${Thread.currentThread().getName()}")
+        // UUIDs for entities consistent within documents
+        val uuids = Map[String, UUID]()
 
-          // The extracted triples
-          val triples = new ListBuffer[TripleRow]()
+        // Create and annotate the CoreNLP Document
+        val doc = new CoreDocument(row.contents)
+        CoreNLP.nlp.annotate(doc)
 
-          // UUIDs for entities consistent within documents
-          val uuids = Map[String, UUID]()
+        // Increment # tokens
+        token_acc.add(doc.tokens().size())
 
-          // Create and annotate the CoreNLP Document
-          val doc = new CoreDocument(row.contents)
-          nlp.annotate(doc)
+        // For eacn sentence...
+        doc.sentences().foreach(sentence => {
 
-          // Increment # tokens
-          token_acc.add(doc.tokens().size())
+          // Extract "MENTIONS", "HAS_STRING", "IS_A", and "LINKS_TO" relations
+          sentence.entityMentions().foreach(mention => {
 
-          // For eacn sentence...
-          doc.sentences().foreach(sentence => {
+            // Get or set the UUID
+            val uuid = uuids.getOrElseUpdate(mention.text(), UUID.randomUUID()).toString
 
-            // Extract "MENTIONS", "HAS_STRING", "IS_A", and "LINKS_TO" relations
-            sentence.entityMentions().foreach(mention => {
+            triples.append(buildMention(row.id, uuid))
+            triples.append(buildHasString(row.id, uuid, mention.text()))
+            triples.append(buildIs(row.id, uuid, mention.entityType()))
+            triples.append(buildLinksTo(row.id, uuid, mention.entity()))
 
-              // Get or set the UUID
-              val uuid = uuids.getOrElseUpdate(mention.text(), UUID.randomUUID()).toString
-
-              triples.append(buildMention(row.id, uuid))
-              triples.append(buildHasString(row.id, uuid, mention.text()))
-              triples.append(buildIs(row.id, uuid, mention.entityType()))
-              triples.append(buildLinksTo(row.id, uuid, mention.entity()))
-
-            })
-
-            // Extract the relations between entities.
-            sentence.relations().foreach(relation => {
-              if (uuids.contains(relation.subjectGloss()) && uuids.contains(relation.objectGloss())) {
-                triples.append(buildRelation(row.id, uuids, relation))
-              }
-            })
           })
 
-          // Increment # triples
-          triple_acc.add(triples.size())
-
-          triples.toList
-
+          // Extract the relations between entities.
+          sentence.relations().foreach(relation => {
+            if (uuids.contains(relation.subjectGloss()) && uuids.contains(relation.objectGloss())) {
+              triples.append(buildRelation(row.id, uuids, relation))
+            }
+          })
         })
+
+        // Increment # triples
+        triple_acc.add(triples.size())
+
+        triples.toList
+
       })
       .flatMap(x => x)
 
@@ -145,20 +152,5 @@ object ExtractTriples {
     val rel = triple.relationGloss().split(":")(1).toUpperCase()
     val obj = uuids.getOrDefault(triple.objectGloss(), null).toString
     new TripleRow(doc, "Entity", sub, rel, "Entity", obj)
-  }
-
-  def pipeline(conf: Conf): StanfordCoreNLP = {
-
-    // Properties for CoreNLP
-    val props = new Properties()
-    props.setProperty("annotators", "tokenize,ssplit,pos,depparse,lemma,ner,coref,kbp,entitylink")
-    props.setProperty("ner.applyFineGrained", "false")
-    props.setProperty("ner.applyNumericClassifiers", "false")
-    props.setProperty("ner.useSUTime", "false")
-    props.setProperty("coref.algorithm", "statistical")
-    props.setProperty("threads", conf.nlpThreads())
-
-    // Build the CoreNLP pipeline
-    new StanfordCoreNLP(props)
   }
 }
