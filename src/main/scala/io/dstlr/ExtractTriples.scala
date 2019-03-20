@@ -10,24 +10,24 @@ import org.apache.spark.sql.SparkSession
 import scala.collection.JavaConversions._
 import scala.collection.mutable.{ListBuffer, Map}
 
-object CoreNLP {
-
-  @transient lazy val nlp = new StanfordCoreNLP(props)
-
-  val props = new Properties()
-  props.setProperty("annotators", "tokenize,ssplit,pos,depparse,lemma,ner,coref,kbp,entitylink")
-  props.setProperty("ner.applyFineGrained", "false")
-  props.setProperty("ner.applyNumericClassifiers", "false")
-  props.setProperty("ner.useSUTime", "false")
-  props.setProperty("coref.algorithm", "statistical")
-  props.setProperty("threads", "32")
-
-}
-
 /**
   * Extract raw triples from documents on Solr using CoreNLP.
   */
 object ExtractTriples {
+
+  object CoreNLP {
+
+    @transient lazy val nlp = new StanfordCoreNLP(props)
+
+    val props = new Properties()
+    props.setProperty("annotators", "tokenize,ssplit,pos,depparse,lemma,ner,coref,kbp,entitylink")
+    props.setProperty("ner.applyFineGrained", "false")
+    props.setProperty("ner.applyNumericClassifiers", "false")
+    props.setProperty("ner.useSUTime", "false")
+    props.setProperty("coref.algorithm", "statistical")
+    props.setProperty("threads", "32")
+
+  }
 
   def main(args: Array[String]): Unit = {
 
@@ -39,6 +39,7 @@ object ExtractTriples {
     val spark = SparkSession
       .builder()
       .appName("dstlr - ExtractTriples")
+      .master("local[*]")
       .getOrCreate()
 
     // Import implicit functions from SparkSession
