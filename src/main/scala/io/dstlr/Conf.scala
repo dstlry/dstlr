@@ -20,6 +20,7 @@ class Conf(args: Seq[String]) extends ScallopConf(args) with Serialization {
   val neoPassword = opt[String](name = "neo4j.password", default = Some("neo4j"))
 
   // Misc
+  val input = opt[String](default = Some("triples"))
   val output = opt[String](default = Some("triples"))
 
   verify()

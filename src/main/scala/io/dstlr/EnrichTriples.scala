@@ -30,7 +30,7 @@ object EnrichTriples {
       (split(0), split(1))
     }).collectAsMap())
 
-    ds.filter("relation = 'LINKS_TO' AND objectValue != 'null'").coalesce(1).foreach(row => {
+    ds.filter("relation = 'LINKS_TO' AND objectValue != 'null'").foreach(row => {
 
       implicit val backend = HttpURLConnectionBackend()
 
@@ -81,5 +81,4 @@ object EnrichTriples {
 //    val response = request.send()
 
   }
-
 }

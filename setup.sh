@@ -5,7 +5,7 @@
 ###
 
 # The path for conda (given at installation time)
-CONDA_PATH="/home/ryan/.miniconda/etc/profile.d/conda.sh"
+CONDA_PATH="/opt/miniconda3/etc/profile.d/conda.sh"
 
 # The spark-solr version to download
 SPARK_SOLR_VERSION=3.6.0

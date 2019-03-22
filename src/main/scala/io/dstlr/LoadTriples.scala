@@ -23,7 +23,7 @@ object LoadTriples {
 
     import spark.implicits._
 
-    val ds = spark.read.option("header", "true").csv("triples").as[TripleRow]
+    val ds = spark.read.option("header", "true").csv(conf.input()).as[TripleRow]
 
     ds.foreachPartition(part => {
       val db = GraphDatabase.driver(conf.neoUri(), AuthTokens.basic(conf.neoUsername(), conf.neoPassword()))
@@ -33,7 +33,7 @@ object LoadTriples {
           case "MENTIONS" => session.run(buildMention(row))
           case "HAS_STRING" => session.run(buildHasString(row))
           case "IS_A" => session.run(buildIs(row))
-          case "LINKS_TO" => session.run(buildLinksTo(row))
+          case "LINKS_TO" if row.objectValue != null => session.run(buildLinksTo(row))
           case _ => session.run(buildPredicate(row))
         }
       })

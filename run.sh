@@ -5,7 +5,7 @@
 ###
 
 # The path for conda (given at installation time)
-CONDA_PATH="/home/ryan/.miniconda/etc/profile.d/conda.sh"
+CONDA_PATH="/opt/miniconda3/etc/profile.d/conda.sh"
 
 # The Neo4j data directory for the Docker volume
 NEO4J_DIR=neo4j
