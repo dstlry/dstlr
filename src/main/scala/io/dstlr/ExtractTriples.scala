@@ -25,7 +25,7 @@ object ExtractTriples {
     props.setProperty("ner.applyNumericClassifiers", "false")
     props.setProperty("ner.useSUTime", "false")
     props.setProperty("coref.algorithm", "statistical")
-    props.setProperty("threads", "32")
+    props.setProperty("threads", "8")
 
   }
 
