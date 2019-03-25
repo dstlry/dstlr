@@ -8,7 +8,7 @@ package object dstlr {
   case class SolrRow(id: String, contents: String)
 
   // Result of our extraction
-  case class TripleRow(doc: String, subjectType: String, subjectValue: String, relation: String, objectType: String, objectValue: String)
+  case class TripleRow(doc: String, subjectType: String, subjectValue: String, relation: String, objectType: String, objectValue: String, meta: Map[String, String])
 
   // Mapping from WikiData properties to our relation names
   case class WikiDataMappingRow(property: String, relation: String)

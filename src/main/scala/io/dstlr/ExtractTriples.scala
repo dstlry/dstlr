@@ -4,11 +4,12 @@ import java.util.{Properties, UUID}
 
 import edu.stanford.nlp.ie.util.RelationTriple
 import edu.stanford.nlp.pipeline.{CoreDocument, StanfordCoreNLP}
+import edu.stanford.nlp.util.Pair
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql.SparkSession
 
 import scala.collection.JavaConversions._
-import scala.collection.mutable.{ListBuffer, Map}
+import scala.collection.mutable.{ListBuffer, Map => MMap}
 
 /**
   * Extract raw triples from documents on Solr using CoreNLP.
@@ -80,7 +81,7 @@ object ExtractTriples {
         val triples = new ListBuffer[TripleRow]()
 
         // UUIDs for entities consistent within documents
-        val uuids = Map[String, UUID]()
+        val uuids = MMap[String, UUID]()
 
         // Create and annotate the CoreNLP Document
         val doc = new CoreDocument(row.contents)
@@ -98,7 +99,7 @@ object ExtractTriples {
             // Get or set the UUID
             val uuid = uuids.getOrElseUpdate(mention.text(), UUID.randomUUID()).toString
 
-            triples.append(buildMention(row.id, uuid))
+            triples.append(buildMention(row.id, uuid, mention.charOffsets()))
             triples.append(buildHasString(row.id, uuid, mention.text()))
             triples.append(buildIs(row.id, uuid, mention.entityType()))
             triples.append(buildLinksTo(row.id, uuid, mention.entity()))
@@ -122,7 +123,7 @@ object ExtractTriples {
       .flatMap(x => x)
 
     // Write to CSV
-    result.write.option("header", "true").csv(conf.output())
+    result.write.parquet(conf.output())
 
     val duration = System.currentTimeMillis() - start
     println(s"Took ${duration}ms @ ${token_acc.value / (duration / 1000)} token/s and ${triple_acc.value / (duration / 1000)} triple/sec")
@@ -131,26 +132,26 @@ object ExtractTriples {
 
   }
 
-  def buildMention(doc: String, entity: String): TripleRow = {
-    new TripleRow(doc, "Document", doc, "MENTIONS", "Entity", entity)
+  def buildMention(doc: String, entity: String, offsets: Pair[Integer, Integer]): TripleRow = {
+    new TripleRow(doc, "Document", doc, "MENTIONS", "Entity", entity, Map("begin" -> offsets.first.toString, "end" -> offsets.second.toString))
   }
 
   def buildHasString(doc: String, entity: String, string: String): TripleRow = {
-    new TripleRow(doc, "Entity", entity, "HAS_STRING", "Label", string)
+    new TripleRow(doc, "Entity", entity, "HAS_STRING", "Label", string, null)
   }
 
   def buildIs(doc: String, entity: String, entityType: String): TripleRow = {
-    new TripleRow(doc, "Entity", entity, "IS_A", "EntityType", entityType)
+    new TripleRow(doc, "Entity", entity, "IS_A", "EntityType", entityType, null)
   }
 
   def buildLinksTo(doc: String, entity: String, uri: String): TripleRow = {
-    new TripleRow(doc, "Entity", entity, "LINKS_TO", "URI", uri)
+    new TripleRow(doc, "Entity", entity, "LINKS_TO", "URI", uri, null)
   }
 
-  def buildRelation(doc: String, uuids: Map[String, UUID], triple: RelationTriple): TripleRow = {
+  def buildRelation(doc: String, uuids: MMap[String, UUID], triple: RelationTriple): TripleRow = {
     val sub = uuids.getOrDefault(triple.subjectGloss(), null).toString
     val rel = triple.relationGloss().split(":")(1).toUpperCase()
     val obj = uuids.getOrDefault(triple.objectGloss(), null).toString
-    new TripleRow(doc, "Entity", sub, rel, "Entity", obj)
+    new TripleRow(doc, "Entity", sub, rel, "Entity", obj, null)
   }
 }

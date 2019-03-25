@@ -19,7 +19,7 @@ object EnrichTriples {
 
     import spark.implicits._
 
-    val ds = spark.read.option("header", "true").csv("simple").as[TripleRow]
+    val ds = spark.read.parquet("simple").as[TripleRow]
     ds.show(false)
 
     val mapping = sc.broadcast(

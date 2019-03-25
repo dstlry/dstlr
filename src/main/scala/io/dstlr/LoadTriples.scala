@@ -22,7 +22,7 @@ object LoadTriples {
 
     import spark.implicits._
 
-    val ds = spark.read.option("header", "true").csv(conf.input()).as[TripleRow]
+    val ds = spark.read.parquet(conf.input()).as[TripleRow]
 
     ds.foreachPartition(part => {
       val db = GraphDatabase.driver(conf.neoUri(), AuthTokens.basic(conf.neoUsername(), conf.neoPassword()))
@@ -42,8 +42,8 @@ object LoadTriples {
   }
 
   def buildMention(row: TripleRow): Statement = {
-    val params = Map("doc" -> row.doc, "entity" -> row.objectValue)
-    new Statement("MERGE (d:Document {id: {doc}}) MERGE (e:Entity {id: {entity}}) MERGE (d)-[r:MENTIONS]->(e) RETURN d, r, e", params)
+    val params = Map("doc" -> row.doc, "entity" -> row.objectValue, "begin" -> row.meta("begin"), "end" -> row.meta("end"))
+    new Statement("MERGE (d:Document {id: {doc}}) MERGE (e:Entity {id: {entity}, begin: {begin}, end: {end}}) MERGE (d)-[r:MENTIONS]->(e) RETURN d, r, e", params)
   }
 
   def buildHasString(row: TripleRow): Statement = {
