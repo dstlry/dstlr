@@ -16,6 +16,8 @@ import scala.collection.mutable.{ListBuffer, Map => MMap}
   */
 object ExtractTriples {
 
+  var conf: Conf = null
+
   object CoreNLP {
 
     @transient lazy val nlp = new StanfordCoreNLP(props)
@@ -26,14 +28,14 @@ object ExtractTriples {
     props.setProperty("ner.applyNumericClassifiers", "false")
     props.setProperty("ner.useSUTime", "false")
     props.setProperty("coref.algorithm", "statistical")
-    props.setProperty("threads", "8")
+    props.setProperty("threads", conf.nlpThreads())
 
   }
 
   def main(args: Array[String]): Unit = {
 
     // Setup config
-    val conf = new Conf(args)
+    conf = new Conf(args)
     println(conf.summary)
 
     // Build the SparkSession

@@ -23,7 +23,7 @@ package object dstlr {
     val partitions = opt[Int](default = Some(8))
 
     // CoreNLP
-    val nlpThreads = opt[String](default = Some("2"))
+    val nlpThreads = opt[String](default = Some("8"))
 
     // Neo4j
     val neoUri = opt[String](name = "neo4j.uri", default = Some("bolt://localhost:7687"))
