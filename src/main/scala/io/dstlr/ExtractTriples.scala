@@ -74,6 +74,8 @@ object ExtractTriples {
 
     val result = ds
       .repartition(conf.partitions())
+      .filter($"id" =!= "")
+      .filter($"contents" =!= "")
       .map(row => {
 
         println(s"Processing ${row.id} on ${Thread.currentThread().getName()}")
