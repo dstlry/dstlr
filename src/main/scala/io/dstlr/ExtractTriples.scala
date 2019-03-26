@@ -84,52 +84,54 @@ object ExtractTriples {
       .repartition(conf.partitions())
       .filter(row => row.id != null && row.id.nonEmpty)
       .filter(row => row.contents != null && row.contents.nonEmpty)
-      .map(row => {
+      .mapPartitions(part => {
+        part.map(row => {
 
-        println(s"Processing ${row.id} on ${Thread.currentThread().getName()}")
+          println(s"Processing ${row.id} on ${Thread.currentThread().getName()}")
 
-        // The extracted triples
-        val triples = new ListBuffer[TripleRow]()
+          // The extracted triples
+          val triples = new ListBuffer[TripleRow]()
 
-        // UUIDs for entities consistent within documents
-        val uuids = MMap[String, UUID]()
+          // UUIDs for entities consistent within documents
+          val uuids = MMap[String, UUID]()
 
-        // Create and annotate the CoreNLP Document
-        val doc = new CoreDocument(row.contents)
-        CoreNLP.nlp.annotate(doc)
+          // Create and annotate the CoreNLP Document
+          val doc = new CoreDocument(row.contents)
+          CoreNLP.nlp.annotate(doc)
 
-        // Increment # tokens
-        token_acc.add(doc.tokens().size())
+          // Increment # tokens
+          token_acc.add(doc.tokens().size())
 
-        // For eacn sentence...
-        doc.sentences().foreach(sentence => {
+          // For eacn sentence...
+          doc.sentences().foreach(sentence => {
 
-          // Extract "MENTIONS", "HAS_STRING", "IS_A", and "LINKS_TO" relations
-          sentence.entityMentions().foreach(mention => {
+            // Extract "MENTIONS", "HAS_STRING", "IS_A", and "LINKS_TO" relations
+            sentence.entityMentions().foreach(mention => {
 
-            // Get or set the UUID
-            val uuid = uuids.getOrElseUpdate(mention.text(), UUID.randomUUID()).toString
+              // Get or set the UUID
+              val uuid = uuids.getOrElseUpdate(mention.text(), UUID.randomUUID()).toString
 
-            triples.append(buildMention(row.id, uuid, mention.charOffsets()))
-            triples.append(buildHasString(row.id, uuid, mention.text()))
-            triples.append(buildIs(row.id, uuid, mention.entityType()))
-            triples.append(buildLinksTo(row.id, uuid, mention.entity()))
+              triples.append(buildMention(row.id, uuid, mention.charOffsets()))
+              triples.append(buildHasString(row.id, uuid, mention.text()))
+              triples.append(buildIs(row.id, uuid, mention.entityType()))
+              triples.append(buildLinksTo(row.id, uuid, mention.entity()))
 
+            })
+
+            // Extract the relations between entities.
+            sentence.relations().foreach(relation => {
+              if (uuids.contains(relation.subjectGloss()) && uuids.contains(relation.objectGloss())) {
+                triples.append(buildRelation(row.id, uuids, relation))
+              }
+            })
           })
 
-          // Extract the relations between entities.
-          sentence.relations().foreach(relation => {
-            if (uuids.contains(relation.subjectGloss()) && uuids.contains(relation.objectGloss())) {
-              triples.append(buildRelation(row.id, uuids, relation))
-            }
-          })
+          // Increment # triples
+          triple_acc.add(triples.size())
+
+          triples.toList
+
         })
-
-        // Increment # triples
-        triple_acc.add(triples.size())
-
-        triples.toList
-
       })
       .flatMap(x => x)
 
