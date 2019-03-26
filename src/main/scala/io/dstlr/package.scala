@@ -19,6 +19,7 @@ package object dstlr {
     val solrUri = opt[String](name = "solr.uri", default = Some("localhost:9983"))
     val solrIndex = opt[String](name = "solr.index", default = Some("core18"))
     val query = opt[String](name = "query", default = Some("*:*"))
+    val fields = opt[String](name = "fields", default = Some("id,contents"))
     val rows = opt[String](default = Some("10000"))
     val partitions = opt[Int](default = Some(8))
 

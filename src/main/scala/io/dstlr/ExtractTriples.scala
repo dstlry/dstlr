@@ -56,6 +56,7 @@ object ExtractTriples {
     val options = Map(
       "collection" -> conf.solrIndex(),
       "query" -> conf.query(),
+      "fields" -> conf.fields(),
       "rows" -> conf.rows(),
       "zkhost" -> conf.solrUri()
     )
@@ -74,8 +75,8 @@ object ExtractTriples {
 
     val result = ds
       .repartition(conf.partitions())
-      .filter($"id" =!= "")
-      .filter($"contents" =!= "")
+      .filter(row => row.id != null && row.id.nonEmpty)
+      .filter(row => row.contents != null && row.contents.nonEmpty)
       .map(row => {
 
         println(s"Processing ${row.id} on ${Thread.currentThread().getName()}")
