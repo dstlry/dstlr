@@ -73,6 +73,7 @@ object ExtractTriples {
     ds.printSchema()
 
     val result = ds
+      .repartition(conf.partitions())
       .map(row => {
 
         println(s"Processing ${row.id} on ${Thread.currentThread().getName()}")
