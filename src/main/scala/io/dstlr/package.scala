@@ -23,9 +23,6 @@ package object dstlr {
     val rows = opt[String](default = Some("10000"))
     val partitions = opt[Int](default = Some(8))
 
-    // CoreNLP
-    val nlpThreads = opt[String](default = Some("2"))
-
     // Neo4j
     val neoUri = opt[String](name = "neo4j.uri", default = Some("bolt://localhost:7687"))
     val neoUsername = opt[String](name = "neo4j.username", default = Some("neo4j"))
