@@ -141,7 +141,7 @@ object ExtractTriples {
       })
       .flatMap(x => x)
 
-    // Write to CSV
+    // Write to parquet file
     result.write.parquet(conf.output())
 
     val duration = System.currentTimeMillis() - start
