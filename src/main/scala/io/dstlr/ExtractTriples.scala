@@ -95,36 +95,42 @@ object ExtractTriples {
           // UUIDs for entities consistent within documents
           val uuids = MMap[String, UUID]()
 
-          // Create and annotate the CoreNLP Document
-          val doc = new CoreDocument(row.contents)
-          CoreNLP.nlp.annotate(doc)
+          try {
 
-          // Increment # tokens
-          token_acc.add(doc.tokens().size())
+            // Create and annotate the CoreNLP Document
+            val doc = new CoreDocument(row.contents)
+            CoreNLP.nlp.annotate(doc)
 
-          // For eacn sentence...
-          doc.sentences().foreach(sentence => {
+            // Increment # tokens
+            token_acc.add(doc.tokens().size())
 
-            // Extract "MENTIONS", "HAS_STRING", "IS_A", and "LINKS_TO" relations
-            sentence.entityMentions().foreach(mention => {
+            // For eacn sentence...
+            doc.sentences().foreach(sentence => {
 
-              // Get or set the UUID
-              val uuid = uuids.getOrElseUpdate(mention.text(), UUID.randomUUID()).toString
+              // Extract "MENTIONS", "HAS_STRING", "IS_A", and "LINKS_TO" relations
+              sentence.entityMentions().foreach(mention => {
 
-              triples.append(buildMention(row.id, uuid, mention.charOffsets()))
-              triples.append(buildHasString(row.id, uuid, mention.text()))
-              triples.append(buildIs(row.id, uuid, mention.entityType()))
-              triples.append(buildLinksTo(row.id, uuid, mention.entity()))
+                // Get or set the UUID
+                val uuid = uuids.getOrElseUpdate(mention.text(), UUID.randomUUID()).toString
 
+                triples.append(buildMention(row.id, uuid, mention.charOffsets()))
+                triples.append(buildHasString(row.id, uuid, mention.text()))
+                triples.append(buildIs(row.id, uuid, mention.entityType()))
+                triples.append(buildLinksTo(row.id, uuid, mention.entity()))
+
+              })
+
+              // Extract the relations between entities.
+              sentence.relations().foreach(relation => {
+                if (uuids.contains(relation.subjectGloss()) && uuids.contains(relation.objectGloss())) {
+                  triples.append(buildRelation(row.id, uuids, relation))
+                }
+              })
             })
 
-            // Extract the relations between entities.
-            sentence.relations().foreach(relation => {
-              if (uuids.contains(relation.subjectGloss()) && uuids.contains(relation.objectGloss())) {
-                triples.append(buildRelation(row.id, uuids, relation))
-              }
-            })
-          })
+          } catch {
+            case e: Exception => println(s"Exception when processing ${row.id} - ${e}")
+          }
 
           // Increment # triples
           triple_acc.add(triples.size())
