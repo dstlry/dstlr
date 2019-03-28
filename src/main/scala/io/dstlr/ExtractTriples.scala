@@ -29,12 +29,6 @@ object ExtractTriples {
     props.setProperty("ner.useSUTime", "false")
     props.setProperty("coref.algorithm", "statistical")
     props.setProperty("threads", threads)
-    props.setProperty("nthreads", threads)
-    props.setProperty("depparse.nthreads", threads)
-    props.setProperty("parse.nthreads", threads)
-    props.setProperty("ner.nthreads", threads)
-    props.setProperty("pos.nthreads", threads)
-    props.setProperty("entitylink.threads", threads)
     props.setProperty("parse.model", "edu/stanford/nlp/models/srparser/englishSR.ser.gz")
 
   }
