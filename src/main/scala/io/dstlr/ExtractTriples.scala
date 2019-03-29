@@ -49,7 +49,8 @@ object ExtractTriples {
     // Import implicit functions from SparkSession
     import spark.implicits._
 
-    // Accumulators for keeping track of # tokens and # triples
+    // Accumulators for keeping track of # docs, tokens, and triples
+    val doc_acc = spark.sparkContext.longAccumulator("docs")
     val token_acc = spark.sparkContext.longAccumulator("tokens")
     val triple_acc = spark.sparkContext.longAccumulator("triples")
 
@@ -69,28 +70,38 @@ object ExtractTriples {
     val start = System.currentTimeMillis()
 
     // Create a DataFrame with the query results
-    val df = spark.read.format("solr")
+    val ds = spark.read.format("solr")
       .options(options)
       .load()
+      .as[SolrRow]
 
-    // Get as a DataSet
-    val ds = df.as[SolrRow]
     ds.printSchema()
 
     val result = ds
       .repartition(conf.partitions())
       .filter(row => row.id != null && row.id.nonEmpty)
       .filter(row => row.contents != null && row.contents.nonEmpty)
+      .filter(row => row.contents.split(" ").length <= conf.threshold())
       .mapPartitions(part => {
+
+        // The extracted triples
+        val triples = new ListBuffer[TripleRow]()
+
+        // UUIDs for entities consistent within documents
+        val uuids = MMap[String, UUID]()
+
         part.map(row => {
 
           println(s"Processing ${row.id} on ${Thread.currentThread().getName()}")
 
           // The extracted triples
-          val triples = new ListBuffer[TripleRow]()
+          triples.clear()
 
           // UUIDs for entities consistent within documents
-          val uuids = MMap[String, UUID]()
+          uuids.clear()
+
+          // Increment # of docs
+          doc_acc.add(1)
 
           try {
 
