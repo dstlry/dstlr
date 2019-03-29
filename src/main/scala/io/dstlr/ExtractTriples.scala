@@ -43,6 +43,7 @@ object ExtractTriples {
     val spark = SparkSession
       .builder()
       .appName("dstlr - ExtractTriples")
+      .master("local[*]")
       .getOrCreate()
 
     // Import implicit functions from SparkSession

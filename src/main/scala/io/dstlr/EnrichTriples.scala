@@ -28,15 +28,16 @@ object EnrichTriples {
       spark.read.option("header", "true").csv("wikidata.csv").as[WikiDataMappingRow].rdd.map(row => (row.property, row.relation)).collectAsMap()
     )
 
-    val ds = spark.read.parquet("triples").as[TripleRow]
+    val entities = spark.read.parquet("triples").as[TripleRow]
       .filter($"relation" === "LINKS_TO" && $"objectValue".isNotNull)
       .select($"objectValue")
       .distinct()
+      .filter(row => row.getString(0).contains("Barack"))
+      .coalesce(1)
 
-    val entities = ds.filter($"relation" === "LINKS_TO" && $"objectValue".isNotNull).select($"objectValue").distinct().filter(row => row.getString(0).contains("Barack"))
     entities.show()
 
-    entities.coalesce(1).foreachPartition(part => {
+    entities.foreachPartition(part => {
 
       // Standard HTTP backend
       implicit val backend = HttpURLConnectionBackend()
