@@ -1,11 +1,13 @@
 package io.dstlr
 
 import java.text.SimpleDateFormat
-import java.util.Date
 
 import com.softwaremill.sttp._
+import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql.SparkSession
 import ujson.Value
+
+import scala.collection.mutable.ListBuffer
 
 /**
   * Enrich the "LINKS_TO" relationships of our extracted triples using data from WikiData.
@@ -13,13 +15,16 @@ import ujson.Value
 object EnrichTriples {
 
   val dateFormat = new SimpleDateFormat("'+'yyyy-MM-dd'T'HH:mm:ss'Z'")
+  val printFormat = new SimpleDateFormat("yyyy-MM-dd")
 
   def main(args: Array[String]): Unit = {
+
+    val conf = new Conf(args)
+    println(conf.summary)
 
     val spark = SparkSession
       .builder()
       .appName("dstlr - EnrichTriples")
-      .master("local[*]")
       .getOrCreate()
 
     import spark.implicits._
@@ -28,79 +33,102 @@ object EnrichTriples {
       spark.read.option("header", "true").csv("wikidata.csv").as[WikiDataMappingRow].rdd.map(row => (row.property, row.relation)).collectAsMap()
     )
 
-    val entities = spark.read.parquet("triples").as[TripleRow]
+    // Delete old output directory
+    FileSystem.get(spark.sparkContext.hadoopConfiguration).delete(new Path(conf.output()), true)
+
+    val entities = spark.read.parquet(conf.input()).as[TripleRow]
       .filter($"relation" === "LINKS_TO" && $"objectValue".isNotNull)
       .select($"objectValue")
       .distinct()
-      .filter(row => row.getString(0).contains("Barack"))
       .coalesce(1)
 
     entities.show()
 
-    entities.foreachPartition(part => {
+    val result = entities
+      .mapPartitions(part => {
 
-      // Standard HTTP backend
-      implicit val backend = HttpURLConnectionBackend()
+        // Standard HTTP backend
+        implicit val backend = HttpURLConnectionBackend()
 
-      // WikiData API can take 50 titles at a time
-      part.grouped(50).foreach(batch => {
+        val list = new ListBuffer[TripleRow]()
 
-        // WikiData API takes "|" delimited titles
-        val titles = batch.map(_.getString(0)).mkString("|")
+        // WikiData API can take 50 titles at a time
+        part.grouped(50).map(batch => {
 
-        // Send the request
-        val resp = sttp.get(uri"https://www.wikidata.org/w/api.php?action=wbgetentities&sites=enwiki&titles=${titles}&languages=en&format=json").send()
+          // WikiData API takes "|" delimited titles
+          val titles = batch.map(_.getString(0)).mkString("|")
 
-        // Parse JSON response
-        val json = ujson.read(resp.unsafeBody)
+          // Send the request
+          val resp = sttp.get(uri"https://www.wikidata.org/w/api.php?action=wbgetentities&sites=enwiki&titles=${titles}&languages=en&format=json").send()
 
-        val entities = json("entities")
+          // Parse JSON response
+          val json = ujson.read(resp.unsafeBody)
 
-        for ((ent, idx) <- entities.obj.zipWithIndex) {
+          val entities = json("entities")
 
-          // The WikiData ID
-          val id = ent._1
+          for ((ent, idx) <- entities.obj.zipWithIndex) {
 
-          // The WikiData title
-          val title = batch(idx).getString(0)
+            // The WikiData ID
+            val id = ent._1
 
-          println(s"###\n# ${id} -> ${title}\n###")
-          val claims = ent._2("claims")
+            // The WikiData title
+            val title = batch(idx).getString(0)
 
-          mapping.value.foreach(map => {
+            println(s"###\n# ${id} -> ${title}\n###")
+            val claims = ent._2("claims")
 
-            val (propertyId, relation) = map
+            mapping.value.foreach(map => {
 
-            // If the entity has one of our properties...
-            if (claims.obj.contains(propertyId)) {
+              val (propertyId, relation) = map
 
-              println(s"${propertyId} -> ${relation}")
+              // If the entity has one of our properties...
+              if (claims.obj.contains(propertyId)) {
 
-              // Match over relation names (DATE_OF_BIRTH, DATE_OF_DEATH, etc.)
-              map._2 match {
-                case "DATE_OF_BIRTH" => println(extractBirthDate(claims(propertyId)))
-                case "DATE_OF_DEATH" => println(extractDeathDate(claims(propertyId)))
-                case "CITY_OF_HEADQUARTERS" => println(extractHeadquarters(claims(propertyId)))
+                println(s"${propertyId} -> ${relation}")
+
+                // Match over relation names (DATE_OF_BIRTH, DATE_OF_DEATH, etc.)
+                map._2 match {
+                  case "DATE_OF_BIRTH" => list.append(extractBirthDate(title, relation, claims(propertyId)))
+                  case "DATE_OF_DEATH" => list.append(extractDeathDate(title, relation, claims(propertyId)))
+                  case "CITY_OF_HEADQUARTERS" => list.append(extractHeadquarters(title, relation, claims(propertyId)))
+                }
               }
-            }
-          })
-        }
+            })
+          }
+
+          list.toList
+
+        })
       })
-    })
+      .flatMap(x => x)
 
-    def extractBirthDate(json: Value): Date = {
-      dateFormat.parse(json(0)("mainsnak")("datavalue")("value")("time").str)
-    }
-
-    def extractDeathDate(json: Value): Date = {
-      dateFormat.parse(json(0)("mainsnak")("datavalue")("value")("time").str)
-    }
-
-    def extractHeadquarters(json: Value): String = {
-      null
-    }
+    result.foreach(row => println(row))
+    result.write.parquet(conf.output())
 
     spark.stop()
 
+  }
+
+  def extractBirthDate(uri: String, relation: String, json: Value): TripleRow = {
+    val date = dateFormat.parse(json(0)("mainsnak")("datavalue")("value")("time").str)
+    new TripleRow("wiki", "URI", uri, relation, "WikiDataValue", printFormat.format(date), null)
+  }
+
+  def extractDeathDate(uri: String, relation: String, json: Value): TripleRow = {
+    val date = dateFormat.parse(json(0)("mainsnak")("datavalue")("value")("time").str)
+    new TripleRow("wiki", "URI", uri, relation, "WikiDataValue", printFormat.format(date), null)
+  }
+
+  def extractHeadquarters(uri: String, relation: String, json: Value): TripleRow = {
+    val wid = json(0)("mainsnak")("datavalue")("value")("id").str
+    new TripleRow("wiki", "URI", uri, relation, "WikiDataValue", id2label(wid), null)
+  }
+
+  // Go from WikiData ID to Label
+  def id2label(id: String): String = {
+    implicit val backend = HttpURLConnectionBackend()
+    val resp = sttp.get(uri"https://www.wikidata.org/w/api.php?action=wbgetentities&props=labels&ids=${id}&languages=en&format=json").send()
+    val json = ujson.read(resp.unsafeBody)
+    json("entities")(id)("labels")("en")("value").str
   }
 }

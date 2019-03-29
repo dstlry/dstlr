@@ -18,22 +18,28 @@ object LoadTriples {
     val spark = SparkSession
       .builder()
       .appName("dstlr - LoadTriples")
+      .master("local[*]")
       .getOrCreate()
 
     import spark.implicits._
 
-    val ds = spark.read.parquet(conf.input()).as[TripleRow]
+    val ds = spark.read.parquet(conf.input()).as[TripleRow].coalesce(1)
 
     ds.foreachPartition(part => {
       val db = GraphDatabase.driver(conf.neoUri(), AuthTokens.basic(conf.neoUsername(), conf.neoPassword()))
       val session = db.session()
       part.foreach(row => {
-        row.relation match {
-          case "MENTIONS" => session.run(buildMention(row))
-          case "HAS_STRING" => session.run(buildHasString(row))
-          case "IS_A" => session.run(buildIs(row))
-          case "LINKS_TO" if row.objectValue != null => session.run(buildLinksTo(row))
-          case _ => session.run(buildPredicate(row))
+
+        if (row.objectType == "WikiDataValue") {
+          session.run(buildWikiData(row))
+        } else {
+          row.relation match {
+            case "MENTIONS" => session.run(buildMention(row))
+            case "HAS_STRING" => session.run(buildHasString(row))
+            case "IS_A" => session.run(buildIs(row))
+            case "LINKS_TO" if row.objectValue != null => session.run(buildLinksTo(row))
+            case _ => session.run(buildPredicate(row))
+          }
         }
       })
       session.close()
@@ -83,4 +89,8 @@ object LoadTriples {
        """.stripMargin, params)
   }
 
+  def buildWikiData(row: TripleRow): Statement = {
+    val params = Map("uri" -> row.subjectValue, "value" -> row.objectValue)
+    new Statement(s"MERGE (u:URI {id: {uri}}) MERGE (w:WikiDataValue {value: {value}}) MERGE (u)-[r:${row.relation}]->(w) RETURN u, r, w", params)
+  }
 }
