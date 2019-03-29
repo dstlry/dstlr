@@ -45,7 +45,7 @@ object LoadTriples {
     val params = Map("doc" -> row.doc, "entity" -> row.objectValue, "index" -> s"${row.meta("begin")}-${row.meta("end")}")
     new Statement(
       """
-        |MERGE (d:Document {id: {doc}}
+        |MERGE (d:Document {id: {doc}})
         |MERGE (e:Entity {id: {entity}})
         |MERGE (d)-[r:MENTIONS]->(e)
         |ON CREATE SET r.index = [{index]
