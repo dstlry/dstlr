@@ -48,7 +48,7 @@ object LoadTriples {
         |MERGE (d:Document {id: {doc}})
         |MERGE (e:Entity {id: {entity}})
         |MERGE (d)-[r:MENTIONS]->(e)
-        |ON CREATE SET r.index = [{index]
+        |ON CREATE SET r.index = [{index}]
         |ON MATCH SET r.index = r.index + [{index}]
       """.stripMargin, params)
   }
