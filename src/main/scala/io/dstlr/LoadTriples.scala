@@ -42,8 +42,15 @@ object LoadTriples {
   }
 
   def buildMention(row: TripleRow): Statement = {
-    val params = Map("doc" -> row.doc, "entity" -> row.objectValue, "begin" -> row.meta("begin"), "end" -> row.meta("end"))
-    new Statement("MERGE (d:Document {id: {doc}}) MERGE (e:Entity {id: {entity}}) MERGE (d)-[r:MENTIONS {begin: {begin}, end: {end}}]->(e) RETURN d, r, e", params)
+    val params = Map("doc" -> row.doc, "entity" -> row.objectValue, "index" -> s"${row.meta("begin")}-${row.meta("end")}")
+    new Statement(
+      """
+        |MERGE (d:Document {id: {doc}}
+        |MERGE (e:Entity {id: {entity}})
+        |MERGE (d)-[r:MENTIONS]->(e)
+        |ON CREATE SET r.index = [{index]
+        |ON MATCH SET r.index = r.index + [{index}]
+      """.stripMargin, params)
   }
 
   def buildHasString(row: TripleRow): Statement = {
