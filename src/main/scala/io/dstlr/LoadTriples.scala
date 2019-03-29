@@ -43,12 +43,12 @@ object LoadTriples {
 
   def buildMention(row: TripleRow): Statement = {
     val params = Map("doc" -> row.doc, "entity" -> row.objectValue, "begin" -> row.meta("begin"), "end" -> row.meta("end"))
-    new Statement("MERGE (d:Document {id: {doc}}) MERGE (e:Entity {id: {entity}}) MERGE (d)-[r:MENTIONS]->(e) RETURN d, r, e", params)
+    new Statement("MERGE (d:Document {id: {doc}}) MERGE (e:Entity {id: {entity}}) MERGE (d)-[r:MENTIONS {begin: {begin}, end: {end}}]->(e) RETURN d, r, e", params)
   }
 
   def buildHasString(row: TripleRow): Statement = {
     val params = Map("entity" -> row.subjectValue, "string" -> row.objectValue)
-    new Statement("MERGE (e:Entity {id: {entity}}) MERGE (l:Label {value: {string}}) MERGE (e)-[r:HAS_STRING {begin: {begin}, end: {end}}]->(l) RETURN e, r, l", params)
+    new Statement("MERGE (e:Entity {id: {entity}}) MERGE (l:Label {value: {string}}) MERGE (e)-[r:HAS_STRING]->(l) RETURN e, r, l", params)
   }
 
   def buildIs(row: TripleRow): Statement = {
