@@ -24,7 +24,7 @@ object WordCount {
     // Build the SparkSession
     val spark = SparkSession
       .builder()
-      .appName("dstlr - ExtractTriples")
+      .appName("dstlr - WordCount")
       .getOrCreate()
 
     import spark.implicits._
@@ -51,6 +51,8 @@ object WordCount {
 
     val result = ds
       .repartition(conf.partitions())
+      .filter(row => row.id != null && row.id.nonEmpty)
+      .filter(row => row.contents != null && row.contents.nonEmpty)
       .map(row => (row.contents.split(" ").length, row.id))
       .toDF("length", "id")
       .sort($"length".desc)
