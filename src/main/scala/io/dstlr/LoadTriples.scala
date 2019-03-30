@@ -18,7 +18,6 @@ object LoadTriples {
     val spark = SparkSession
       .builder()
       .appName("dstlr - LoadTriples")
-      .master("local[*]")
       .getOrCreate()
 
     import spark.implicits._
@@ -61,17 +60,17 @@ object LoadTriples {
 
   def buildHasString(row: TripleRow): Statement = {
     val params = Map("entity" -> row.subjectValue, "string" -> row.objectValue)
-    new Statement("MERGE (e:Entity {id: {entity}}) MERGE (l:Label {value: {string}}) MERGE (e)-[r:HAS_STRING]->(l) RETURN e, r, l", params)
+    new Statement("MERGE (e:Entity {id: {entity}}) MERGE (l:Label {value: {string}}) MERGE (e)-[r:HAS_STRING]->(l)", params)
   }
 
   def buildIs(row: TripleRow): Statement = {
     val params = Map("entity" -> row.subjectValue, "entityType" -> row.objectValue)
-    new Statement("MERGE (e:Entity {id: {entity}}) MERGE (t:EntityType {value: {entityType}}) MERGE (e)-[r:IS_A]->(t) RETURN e, r, t", params)
+    new Statement("MERGE (e:Entity {id: {entity}}) MERGE (t:EntityType {value: {entityType}}) MERGE (e)-[r:IS_A]->(t)", params)
   }
 
   def buildLinksTo(row: TripleRow): Statement = {
     val params = Map("entity" -> row.subjectValue, "uri" -> row.objectValue)
-    new Statement("MERGE (e:Entity {id: {entity}}) MERGE (u:URI {id: {uri}}) MERGE (e)-[r:LINKS_TO]->(u) RETURN e, r, u", params)
+    new Statement("MERGE (e:Entity {id: {entity}}) MERGE (u:URI {id: {uri}}) MERGE (e)-[r:LINKS_TO]->(u)", params)
   }
 
   def buildPredicate(row: TripleRow): Statement = {
@@ -91,6 +90,6 @@ object LoadTriples {
 
   def buildWikiData(row: TripleRow): Statement = {
     val params = Map("uri" -> row.subjectValue, "value" -> row.objectValue)
-    new Statement(s"MERGE (u:URI {id: {uri}}) MERGE (w:WikiDataValue {value: {value}}) MERGE (u)-[r:${row.relation}]->(w) RETURN u, r, w", params)
+    new Statement(s"MERGE (u:URI {id: {uri}}) MERGE (w:WikiDataValue {value: {value}}) MERGE (u)-[r:${row.relation}]->(w)", params)
   }
 }
