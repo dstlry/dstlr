@@ -20,15 +20,13 @@ object ExtractTriples {
 
     @transient lazy val nlp = new StanfordCoreNLP(props)
 
-    val threads = (Runtime.getRuntime.availableProcessors / 2).toString
-
     val props = new Properties()
     props.setProperty("annotators", "tokenize,ssplit,pos,depparse,lemma,ner,coref,kbp,entitylink")
     props.setProperty("ner.applyFineGrained", "false")
     props.setProperty("ner.applyNumericClassifiers", "false")
     props.setProperty("ner.useSUTime", "false")
     props.setProperty("coref.algorithm", "statistical")
-    props.setProperty("threads", threads)
+    props.setProperty("threads", "8")
     props.setProperty("parse.model", "edu/stanford/nlp/models/srparser/englishSR.ser.gz")
 
   }
