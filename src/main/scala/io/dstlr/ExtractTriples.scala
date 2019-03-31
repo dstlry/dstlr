@@ -89,7 +89,7 @@ object ExtractTriples {
 
         part.map(row => {
 
-          println(s"Processing ${row.id} on ${Thread.currentThread().getName()}")
+          println(s"${System.currentTimeMillis()} - Processing ${row.id} on ${Thread.currentThread().getName()}")
 
           // The extracted triples
           triples.clear()
