@@ -21,7 +21,7 @@ object ExtractTriples {
     @transient lazy val nlp = new StanfordCoreNLP(props)
 
     val props = new Properties()
-    props.setProperty("annotators", "tokenize,ssplit,pos,depparse,lemma,ner,coref,kbp,entitylink")
+    props.setProperty("annotators", "tokenize,ssplit,pos,lemma,parse,ner,coref,kbp,entitylink")
     props.setProperty("ner.applyFineGrained", "false")
     props.setProperty("ner.applyNumericClassifiers", "false")
     props.setProperty("ner.useSUTime", "false")
