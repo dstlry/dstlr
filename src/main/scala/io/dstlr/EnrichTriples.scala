@@ -42,8 +42,6 @@ object EnrichTriples {
       .select($"objectValue")
       .distinct()
 
-    entities.show()
-
     val result = entities
       .mapPartitions(part => {
 
@@ -102,7 +100,6 @@ object EnrichTriples {
       })
       .flatMap(x => x)
 
-    result.foreach(row => println(row))
     result.write.parquet(conf.output())
 
     spark.stop()
