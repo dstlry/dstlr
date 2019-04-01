@@ -18,17 +18,26 @@ object ExtractTriples {
 
   object CoreNLP {
 
-    @transient lazy val nlp = new StanfordCoreNLP(props)
+    // Used for filtering out documents with sentences too long for the KBPAnnotator
+    @transient lazy val ssplit = new StanfordCoreNLP(new Properties() {
+      {
+        setProperty("annotators", "tokenize,ssplit")
+        setProperty("threads", "8")
+      }
+    })
 
-    val props = new Properties()
-    props.setProperty("annotators", "tokenize,ssplit,pos,lemma,parse,ner,coref,kbp,entitylink")
-    props.setProperty("ner.applyFineGrained", "false")
-    props.setProperty("ner.applyNumericClassifiers", "false")
-    props.setProperty("ner.useSUTime", "false")
-    props.setProperty("coref.algorithm", "statistical")
-    props.setProperty("threads", "8")
-    props.setProperty("parse.model", "edu/stanford/nlp/models/srparser/englishSR.ser.gz")
-
+    // Used for the full NER, KBP, and entity linking
+    @transient lazy val nlp = new StanfordCoreNLP(new Properties() {
+      {
+        setProperty("annotators", "tokenize,ssplit,pos,lemma,parse,ner,coref,kbp,entitylink")
+        setProperty("ner.applyFineGrained", "false")
+        setProperty("ner.applyNumericClassifiers", "false")
+        setProperty("ner.useSUTime", "false")
+        setProperty("coref.algorithm", "statistical")
+        setProperty("threads", "8")
+        setProperty("parse.model", "edu/stanford/nlp/models/srparser/englishSR.ser.gz")
+      }
+    })
   }
 
   def main(args: Array[String]): Unit = {
@@ -78,7 +87,12 @@ object ExtractTriples {
       .repartition(conf.partitions())
       .filter(row => row.id != null && row.id.nonEmpty)
       .filter(row => row.contents != null && row.contents.nonEmpty)
-      .filter(row => row.contents.split(" ").length <= conf.threshold())
+      .filter(row =>  row.contents.split(" ").length <= conf.docLengthThreshold())
+      .filter(row => {
+        val doc = new CoreDocument(row.contents)
+        CoreNLP.ssplit.annotate(doc)
+        doc.sentences().forall(sent => sent.tokens().size() <= conf.sentLengthThreshold())
+      })
       .mapPartitions(part => {
 
         // The extracted triples
