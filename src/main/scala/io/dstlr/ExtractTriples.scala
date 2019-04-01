@@ -3,7 +3,7 @@ package io.dstlr
 import java.util.{Properties, UUID}
 
 import edu.stanford.nlp.ie.util.RelationTriple
-import edu.stanford.nlp.pipeline.{CoreDocument, StanfordCoreNLP}
+import edu.stanford.nlp.pipeline.{CoreDocument, CoreEntityMention, StanfordCoreNLP}
 import edu.stanford.nlp.util.Pair
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql.SparkSession
@@ -50,6 +50,7 @@ object ExtractTriples {
     val spark = SparkSession
       .builder()
       .appName("dstlr - ExtractTriples")
+      .master("local[*]")
       .getOrCreate()
 
     // Import implicit functions from SparkSession
@@ -87,7 +88,7 @@ object ExtractTriples {
       .repartition(conf.partitions())
       .filter(row => row.id != null && row.id.nonEmpty)
       .filter(row => row.contents != null && row.contents.nonEmpty)
-      .filter(row =>  row.contents.split(" ").length <= conf.docLengthThreshold())
+      .filter(row => row.contents.split(" ").length <= conf.docLengthThreshold())
       .filter(row => {
         val doc = new CoreDocument(row.contents)
         CoreNLP.ssplit.annotate(doc)
@@ -130,7 +131,7 @@ object ExtractTriples {
               sentence.entityMentions().foreach(mention => {
 
                 // Get or set the UUID
-                val uuid = uuids.getOrElseUpdate(mention.text(), UUID.randomUUID()).toString
+                val uuid = uuids.getOrElseUpdate(toLemmaString(mention), UUID.randomUUID()).toString
 
                 triples.append(buildMention(row.id, uuid, mention.charOffsets()))
                 triples.append(buildHasString(row.id, uuid, mention.text()))
@@ -141,7 +142,7 @@ object ExtractTriples {
 
               // Extract the relations between entities.
               sentence.relations().foreach(relation => {
-                if (uuids.contains(relation.subjectGloss()) && uuids.contains(relation.objectGloss())) {
+                if (uuids.contains(relation.subjectLemmaGloss()) && uuids.contains(relation.objectLemmaGloss())) {
                   triples.append(buildRelation(row.id, uuids, relation))
                 }
               })
@@ -164,10 +165,23 @@ object ExtractTriples {
     result.write.parquet(conf.output())
 
     val duration = System.currentTimeMillis() - start
-    println(s"Took ${duration}ms @ ${token_acc.value / (duration / 1000)} token/s and ${triple_acc.value / (duration / 1000)} triple/sec")
+    println(s"Took ${duration}ms @ ${doc_acc.value / (duration / 1000)} doc/s, ${token_acc.value / (duration / 1000)} token/s, and ${triple_acc.value / (duration / 1000)} triple/sec")
+
+    println("Sentence Split Pipeline")
+    println(CoreNLP.ssplit.timingInformation())
+
+    println("Sentence Split Pipeline")
+    println(CoreNLP.nlp.timingInformation())
 
     spark.stop()
 
+  }
+
+  def toLemmaString(mention: CoreEntityMention): String = {
+    mention.tokens()
+      .filter(x => !x.tag.matches("[.?,:;'\"!]"))
+      .map(token => if (token.lemma() == null) token.word() else token.lemma())
+      .mkString(" ")
   }
 
   def buildMention(doc: String, entity: String, offsets: Pair[Integer, Integer]): TripleRow = {
@@ -187,9 +201,9 @@ object ExtractTriples {
   }
 
   def buildRelation(doc: String, uuids: MMap[String, UUID], triple: RelationTriple): TripleRow = {
-    val sub = uuids.getOrDefault(triple.subjectGloss(), null).toString
+    val sub = uuids.getOrDefault(triple.subjectLemmaGloss(), null).toString
     val rel = triple.relationGloss().split(":")(1).toUpperCase()
-    val obj = uuids.getOrDefault(triple.objectGloss(), null).toString
+    val obj = uuids.getOrDefault(triple.objectLemmaGloss(), null).toString
     new TripleRow(doc, "Entity", sub, rel, "Entity", obj, null)
   }
 }
