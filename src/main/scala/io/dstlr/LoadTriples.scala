@@ -13,6 +13,9 @@ import scala.collection.mutable.Map
   */
 object LoadTriples {
 
+  // Max size of indexes in neo4j
+  val MAX_INDEX_SIZE = 4039
+
   def main(args: Array[String]): Unit = {
 
     val conf = new Conf(args)
@@ -69,13 +72,13 @@ object LoadTriples {
         val session = db.session()
 
         part.grouped(conf.neoBatchSize()).foreach(batch => {
-
           val list = new util.ArrayList[util.Map[String, String]]()
           batch.foreach(row => {
+            val labelBytes = row.objectValue.getBytes("UTF-8")
             list.append(new util.HashMap[String, String]() {
               {
                 put("entity", row.subjectValue)
-                put("label", row.objectValue)
+                put("label", if (labelBytes.length <= MAX_INDEX_SIZE) row.objectValue else new String(labelBytes.slice(0, MAX_INDEX_SIZE)))
               }
             })
           })
