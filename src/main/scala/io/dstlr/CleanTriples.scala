@@ -17,7 +17,6 @@ object CleanTriples {
     val spark = SparkSession
       .builder()
       .appName("dstlr - EnrichTriples")
-      .master("local[*]")
       .config("spark.neo4j.bolt.url", conf.neoUri())
       .config("spark.neo4j.bolt.user", conf.neoUsername())
       .config("spark.neo4j.bolt.password", conf.neoPassword())
