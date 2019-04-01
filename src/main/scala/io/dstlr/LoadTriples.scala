@@ -263,6 +263,6 @@ object LoadTriples {
 
   def buildWikiData(relation: String, batch: util.ArrayList[util.Map[String, String]]): Statement = {
     val params = Map("batch" -> batch)
-    new Statement(s"UNWIND {batch} as batch MATCH (u:URI {id: {uri}}) MERGE (w:WikiDataValue {value: {value}}) MERGE (u)-[r:${relation}]->(w)", params)
+    new Statement(s"UNWIND {batch} as batch MATCH (u:URI {id: batch.uri}) MERGE (w:WikiDataValue {value: batch.value}) MERGE (u)-[r:${relation}]->(w)", params)
   }
 }
