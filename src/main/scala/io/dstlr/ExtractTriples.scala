@@ -20,20 +20,14 @@ object ExtractTriples {
 
     @transient lazy val nlp = new StanfordCoreNLP(props)
 
-    val threads = (Runtime.getRuntime.availableProcessors / 2).toString
-
     val props = new Properties()
-    props.setProperty("annotators", "tokenize,ssplit,pos,depparse,lemma,ner,coref,kbp,entitylink")
+    props.setProperty("annotators", "tokenize,ssplit,pos,lemma,parse,ner,coref,kbp,entitylink")
     props.setProperty("ner.applyFineGrained", "false")
     props.setProperty("ner.applyNumericClassifiers", "false")
     props.setProperty("ner.useSUTime", "false")
     props.setProperty("coref.algorithm", "statistical")
-    props.setProperty("threads", threads)
-    props.setProperty("nthreads", threads)
-    props.setProperty("depparse.threads", threads)
-    props.setProperty("parse.threads", threads)
-    props.setProperty("ner.threads", threads)
-    props.setProperty("pos.threads", threads)
+    props.setProperty("threads", "8")
+    props.setProperty("parse.model", "edu/stanford/nlp/models/srparser/englishSR.ser.gz")
 
   }
 
@@ -52,7 +46,8 @@ object ExtractTriples {
     // Import implicit functions from SparkSession
     import spark.implicits._
 
-    // Accumulators for keeping track of # tokens and # triples
+    // Accumulators for keeping track of # docs, tokens, and triples
+    val doc_acc = spark.sparkContext.longAccumulator("docs")
     val token_acc = spark.sparkContext.longAccumulator("tokens")
     val triple_acc = spark.sparkContext.longAccumulator("triples")
 
@@ -72,59 +67,75 @@ object ExtractTriples {
     val start = System.currentTimeMillis()
 
     // Create a DataFrame with the query results
-    val df = spark.read.format("solr")
+    val ds = spark.read.format("solr")
       .options(options)
       .load()
+      .as[SolrRow]
 
-    // Get as a DataSet
-    val ds = df.as[SolrRow]
     ds.printSchema()
 
     val result = ds
       .repartition(conf.partitions())
       .filter(row => row.id != null && row.id.nonEmpty)
       .filter(row => row.contents != null && row.contents.nonEmpty)
+      .filter(row => row.contents.split(" ").length <= conf.threshold())
       .mapPartitions(part => {
+
+        // The extracted triples
+        val triples = new ListBuffer[TripleRow]()
+
+        // UUIDs for entities consistent within documents
+        val uuids = MMap[String, UUID]()
+
         part.map(row => {
 
-          println(s"Processing ${row.id} on ${Thread.currentThread().getName()}")
+          println(s"${System.currentTimeMillis()} - Processing ${row.id} on ${Thread.currentThread().getName()}")
 
           // The extracted triples
-          val triples = new ListBuffer[TripleRow]()
+          triples.clear()
 
           // UUIDs for entities consistent within documents
-          val uuids = MMap[String, UUID]()
+          uuids.clear()
 
-          // Create and annotate the CoreNLP Document
-          val doc = new CoreDocument(row.contents)
-          CoreNLP.nlp.annotate(doc)
+          // Increment # of docs
+          doc_acc.add(1)
 
-          // Increment # tokens
-          token_acc.add(doc.tokens().size())
+          try {
 
-          // For eacn sentence...
-          doc.sentences().foreach(sentence => {
+            // Create and annotate the CoreNLP Document
+            val doc = new CoreDocument(row.contents)
+            CoreNLP.nlp.annotate(doc)
 
-            // Extract "MENTIONS", "HAS_STRING", "IS_A", and "LINKS_TO" relations
-            sentence.entityMentions().foreach(mention => {
+            // Increment # tokens
+            token_acc.add(doc.tokens().size())
 
-              // Get or set the UUID
-              val uuid = uuids.getOrElseUpdate(mention.text(), UUID.randomUUID()).toString
+            // For eacn sentence...
+            doc.sentences().foreach(sentence => {
 
-              triples.append(buildMention(row.id, uuid, mention.charOffsets()))
-              triples.append(buildHasString(row.id, uuid, mention.text()))
-              triples.append(buildIs(row.id, uuid, mention.entityType()))
-              triples.append(buildLinksTo(row.id, uuid, mention.entity()))
+              // Extract "MENTIONS", "HAS_STRING", "IS_A", and "LINKS_TO" relations
+              sentence.entityMentions().foreach(mention => {
 
+                // Get or set the UUID
+                val uuid = uuids.getOrElseUpdate(mention.text(), UUID.randomUUID()).toString
+
+                triples.append(buildMention(row.id, uuid, mention.charOffsets()))
+                triples.append(buildHasString(row.id, uuid, mention.text()))
+                triples.append(buildIs(row.id, uuid, mention.entityType()))
+                triples.append(buildLinksTo(row.id, uuid, mention.entity()))
+
+              })
+
+              // Extract the relations between entities.
+              sentence.relations().foreach(relation => {
+                if (uuids.contains(relation.subjectGloss()) && uuids.contains(relation.objectGloss())) {
+                  triples.append(buildRelation(row.id, uuids, relation))
+                }
+              })
             })
 
-            // Extract the relations between entities.
-            sentence.relations().foreach(relation => {
-              if (uuids.contains(relation.subjectGloss()) && uuids.contains(relation.objectGloss())) {
-                triples.append(buildRelation(row.id, uuids, relation))
-              }
-            })
-          })
+          } catch {
+            case e: Exception => println(s"Exception when processing ${row.id} - ${e}")
+          }
 
           // Increment # triples
           triple_acc.add(triples.size())
@@ -135,7 +146,7 @@ object ExtractTriples {
       })
       .flatMap(x => x)
 
-    // Write to CSV
+    // Write to parquet file
     result.write.parquet(conf.output())
 
     val duration = System.currentTimeMillis() - start
