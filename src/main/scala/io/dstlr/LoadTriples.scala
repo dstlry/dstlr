@@ -21,12 +21,11 @@ object LoadTriples {
     val spark = SparkSession
       .builder()
       .appName("dstlr - LoadTriples")
-      .master("local[*]")
       .getOrCreate()
 
     import spark.implicits._
 
-    val ds = spark.read.parquet(conf.input()).as[TripleRow].coalesce(1)
+    val ds = spark.read.parquet(conf.input()).as[TripleRow].repartition(conf.partitions())
 
     val notWikiDataValue = ds.filter($"objectType" =!= "WikiDataValue")
 

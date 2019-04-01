@@ -37,10 +37,10 @@ object EnrichTriples {
     FileSystem.get(spark.sparkContext.hadoopConfiguration).delete(new Path(conf.output()), true)
 
     val entities = spark.read.parquet(conf.input()).as[TripleRow]
+      .repartition(conf.partitions())
       .filter($"relation" === "LINKS_TO" && $"objectValue".isNotNull)
       .select($"objectValue")
       .distinct()
-      .coalesce(1)
 
     entities.show()
 
