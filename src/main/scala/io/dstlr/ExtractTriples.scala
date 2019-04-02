@@ -151,6 +151,9 @@ object ExtractTriples {
             case e: Exception => println(s"Exception when processing ${row.id} - ${e}")
           }
 
+          // Log timing info
+          println(CoreNLP.nlp.timingInformation())
+
           // Increment # triples
           triple_acc.add(triples.size())
 
@@ -165,12 +168,6 @@ object ExtractTriples {
 
     val duration = System.currentTimeMillis() - start
     println(s"Took ${duration}ms @ ${doc_acc.value / (duration / 1000)} doc/s, ${token_acc.value / (duration / 1000)} token/s, and ${triple_acc.value / (duration / 1000)} triple/sec")
-
-    println("Sentence Split Pipeline")
-    println(CoreNLP.ssplit.timingInformation())
-
-    println("Sentence Split Pipeline")
-    println(CoreNLP.nlp.timingInformation())
 
     spark.stop()
 
