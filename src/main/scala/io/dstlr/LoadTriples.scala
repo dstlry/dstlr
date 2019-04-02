@@ -30,6 +30,8 @@ object LoadTriples {
 
     val triples_acc = spark.sparkContext.longAccumulator("triples")
 
+    val start = System.currentTimeMillis()
+
     val ds = spark.read.parquet(conf.input()).as[TripleRow].coalesce(1)
 
     val notWikiDataValue = ds.filter($"objectType" =!= "WikiDataValue")
@@ -223,6 +225,12 @@ object LoadTriples {
         db.close()
 
       })
+
+    val duration = System.currentTimeMillis() - start
+    println(s"Took ${duration}ms @ ${triples_acc.value / (duration / 1000)} triple/s")
+
+    spark.stop()
+
   }
 
   def buildMention(batch: util.ArrayList[util.Map[String, String]]): Statement = {
