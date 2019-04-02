@@ -28,6 +28,8 @@ object LoadTriples {
 
     import spark.implicits._
 
+    val triples_acc = spark.sparkContext.longAccumulator("triples")
+
     val ds = spark.read.parquet(conf.input()).as[TripleRow].coalesce(1)
 
     val notWikiDataValue = ds.filter($"objectType" =!= "WikiDataValue")
@@ -41,6 +43,8 @@ object LoadTriples {
         val session = db.session()
 
         part.grouped(conf.neoBatchSize()).foreach(batch => {
+
+          triples_acc.add(batch.size)
 
           val list = new util.ArrayList[util.Map[String, String]]()
           batch.foreach(row => {
@@ -72,6 +76,7 @@ object LoadTriples {
         val session = db.session()
 
         part.grouped(conf.neoBatchSize()).foreach(batch => {
+          triples_acc.add(batch.size)
           val list = new util.ArrayList[util.Map[String, String]]()
           batch.foreach(row => {
             val labelBytes = row.objectValue.getBytes("UTF-8")
@@ -102,7 +107,7 @@ object LoadTriples {
         val session = db.session()
 
         part.grouped(conf.neoBatchSize()).foreach(batch => {
-
+          triples_acc.add(batch.size)
           val list = new util.ArrayList[util.Map[String, String]]()
           batch.foreach(row => {
             list.append(new util.HashMap[String, String]() {
@@ -132,7 +137,7 @@ object LoadTriples {
         val session = db.session()
 
         part.grouped(conf.neoBatchSize()).foreach(batch => {
-
+          triples_acc.add(batch.size)
           val list = new util.ArrayList[util.Map[String, String]]()
           batch.foreach(row => {
             list.append(new util.HashMap[String, String]() {
@@ -167,7 +172,7 @@ object LoadTriples {
         val session = db.session()
 
         part._2.grouped(conf.neoBatchSize()).foreach(batch => {
-
+          triples_acc.add(batch.size)
           val list = new util.ArrayList[util.Map[String, String]]()
           batch.foreach(row => {
             list.append(new util.HashMap[String, String]() {
@@ -199,7 +204,7 @@ object LoadTriples {
         val session = db.session()
 
         part._2.grouped(conf.neoBatchSize()).foreach(batch => {
-
+          triples_acc.add(batch.size)
           val list = new util.ArrayList[util.Map[String, String]]()
           batch.foreach(row => {
             list.append(new util.HashMap[String, String]() {
