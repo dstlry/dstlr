@@ -100,7 +100,7 @@ object ExtractTriples {
         // UUIDs for entities consistent within documents
         val uuids = MMap[String, UUID]()
 
-        part.map(row => {
+        val mapped = part.map(row => {
 
           println(s"${System.currentTimeMillis()} - Processing ${row.id} on ${Thread.currentThread().getName()}")
 
@@ -148,15 +148,18 @@ object ExtractTriples {
             case e: Exception => println(s"Exception when processing ${row.id} - ${e}")
           }
 
-          // Log timing info
-          println(CoreNLP.nlp.timingInformation())
-
           // Increment # triples
           triple_acc.add(triples.size())
 
           triples.toList
 
         })
+
+        // Log timing info
+        println(CoreNLP.nlp.timingInformation())
+
+        mapped
+
       })
       .flatMap(x => x)
 
