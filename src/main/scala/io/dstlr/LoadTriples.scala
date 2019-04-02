@@ -83,7 +83,7 @@ object LoadTriples {
             list.append(new util.HashMap[String, String]() {
               {
                 put("entity", row.subjectValue)
-                put("label", if (labelBytes.length <= MAX_INDEX_SIZE) row.objectValue else new String(labelBytes.slice(0, MAX_INDEX_SIZE)))
+                put("label", if (labelBytes.length < MAX_INDEX_SIZE) row.objectValue else new String(labelBytes.slice(0, MAX_INDEX_SIZE - 1)))
               }
             })
           })
