@@ -4,7 +4,6 @@ import java.util.{Properties, UUID}
 
 import edu.stanford.nlp.ie.util.RelationTriple
 import edu.stanford.nlp.pipeline.{CoreDocument, CoreEntityMention, StanfordCoreNLP}
-import edu.stanford.nlp.util.Pair
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql.SparkSession
 
@@ -50,7 +49,6 @@ object ExtractTriples {
     val spark = SparkSession
       .builder()
       .appName("dstlr - ExtractTriples")
-      .master("local[*]")
       .getOrCreate()
 
     // Import implicit functions from SparkSession
@@ -133,9 +131,7 @@ object ExtractTriples {
                 // Get or set the UUID
                 val uuid = uuids.getOrElseUpdate(toLemmaString(mention), UUID.randomUUID()).toString
 
-                triples.append(buildMention(row.id, uuid, mention.charOffsets()))
-                triples.append(buildHasString(row.id, uuid, mention.text()))
-                triples.append(buildIs(row.id, uuid, mention.entityType()))
+                triples.append(buildMention(row.id, uuid, mention))
                 triples.append(buildLinksTo(row.id, uuid, mention.entity()))
 
               })
@@ -181,16 +177,13 @@ object ExtractTriples {
       .mkString(" ")
   }
 
-  def buildMention(doc: String, entity: String, offsets: Pair[Integer, Integer]): TripleRow = {
-    new TripleRow(doc, "Document", doc, "MENTIONS", "Entity", entity, Map("begin" -> offsets.first.toString, "end" -> offsets.second.toString))
-  }
-
-  def buildHasString(doc: String, entity: String, string: String): TripleRow = {
-    new TripleRow(doc, "Entity", entity, "HAS_STRING", "Label", string, null)
-  }
-
-  def buildIs(doc: String, entity: String, entityType: String): TripleRow = {
-    new TripleRow(doc, "Entity", entity, "IS_A", "EntityType", entityType, null)
+  def buildMention(doc: String, entity: String, mention: CoreEntityMention): TripleRow = {
+    new TripleRow(doc, "Document", doc, "MENTIONS", "Entity", entity, Map(
+      "label" -> mention.text(),
+      "type" -> mention.entityType(),
+      "begin" -> mention.charOffsets().first.toString,
+      "end" -> mention.charOffsets().second.toString)
+    )
   }
 
   def buildLinksTo(doc: String, entity: String, uri: String): TripleRow = {

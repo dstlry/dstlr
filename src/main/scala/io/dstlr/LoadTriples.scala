@@ -54,6 +54,8 @@ object LoadTriples {
               {
                 put("doc", row.doc)
                 put("entity", row.objectValue)
+                put("label", row.meta("label"))
+                put("type", row.meta("type"))
                 put("index", s"${row.meta("begin")}-${row.meta("end")}")
               }
             })
@@ -61,67 +63,6 @@ object LoadTriples {
 
           // Insert the batch
           session.run(buildMention(list))
-
-        })
-
-        session.close()
-        db.close()
-
-      })
-
-    // HAS_STRING
-    notWikiDataValue
-      .filter($"relation" === "HAS_STRING")
-      .foreachPartition(part => {
-
-        val db = GraphDatabase.driver(conf.neoUri(), AuthTokens.basic(conf.neoUsername(), conf.neoPassword()))
-        val session = db.session()
-
-        part.grouped(conf.neoBatchSize()).foreach(batch => {
-          triples_acc.add(batch.size)
-          val list = new util.ArrayList[util.Map[String, String]]()
-          batch.foreach(row => {
-            val labelBytes = row.objectValue.getBytes("UTF-8")
-            list.append(new util.HashMap[String, String]() {
-              {
-                put("entity", row.subjectValue)
-                put("label", if (labelBytes.length < MAX_INDEX_SIZE) row.objectValue else new String(labelBytes.slice(0, MAX_INDEX_SIZE - 1)))
-              }
-            })
-          })
-
-          // Insert the batch
-          session.run(buildHasString(list))
-
-        })
-
-        session.close()
-        db.close()
-
-      })
-
-    // IS_A
-    notWikiDataValue
-      .filter($"relation" === "IS_A")
-      .foreachPartition(part => {
-
-        val db = GraphDatabase.driver(conf.neoUri(), AuthTokens.basic(conf.neoUsername(), conf.neoPassword()))
-        val session = db.session()
-
-        part.grouped(conf.neoBatchSize()).foreach(batch => {
-          triples_acc.add(batch.size)
-          val list = new util.ArrayList[util.Map[String, String]]()
-          batch.foreach(row => {
-            list.append(new util.HashMap[String, String]() {
-              {
-                put("entity", row.subjectValue)
-                put("entityType", row.objectValue)
-              }
-            })
-          })
-
-          // Insert the batch
-          session.run(buildIs(list))
 
         })
 
@@ -162,10 +103,7 @@ object LoadTriples {
 
     notWikiDataValue
       .filter($"relation" =!= "MENTIONS")
-      .filter($"relation" =!= "HAS_STRING")
-      .filter($"relation" =!= "IS_A")
       .filter($"relation" =!= "LINKS_TO")
-      .filter($"relation" =!= "MENTIONS")
       .rdd
       .groupBy(row => row.relation)
       .foreach(part => {
@@ -181,12 +119,13 @@ object LoadTriples {
               {
                 put("doc", row.doc)
                 put("sub", row.subjectValue)
+                put("rel", row.relation)
                 put("obj", row.objectValue)
               }
             })
           })
 
-          session.run(buildPredicate(part._1, list))
+          session.run(buildPredicate(list))
 
         })
 
@@ -212,12 +151,13 @@ object LoadTriples {
             list.append(new util.HashMap[String, String]() {
               {
                 put("uri", row.subjectValue)
+                put("rel", row.relation)
                 put("value", row.objectValue)
               }
             })
           })
 
-          session.run(buildWikiData(part._1, list))
+          session.run(buildWikiData(list))
 
         })
 
@@ -239,43 +179,43 @@ object LoadTriples {
       """
         |UNWIND {batch} as batch
         |MERGE (d:Document {id: batch.doc})
-        |MERGE (e:Entity {id: batch.entity})
+        |MERGE (e:Entity {id: batch.entity, label: batch.label, type: batch.type})
         |MERGE (d)-[r:MENTIONS]->(e)
         |ON CREATE SET r.index = [batch.index]
         |ON MATCH SET r.index = r.index + [batch.index]
       """.stripMargin, params)
   }
 
-  def buildHasString(batch: util.ArrayList[util.Map[String, String]]): Statement = {
-    val params = Map("batch" -> batch)
-    new Statement("UNWIND {batch} as batch MATCH (e:Entity {id: batch.entity}) MERGE (l:Label {value: batch.label}) MERGE (e)-[r:HAS_STRING]->(l)", params)
-  }
-
-  def buildIs(batch: util.ArrayList[util.Map[String, String]]): Statement = {
-    val params = Map("batch" -> batch)
-    new Statement("UNWIND {batch} as batch MATCH (e:Entity {id: batch.entity}) MERGE (t:EntityType {value: batch.entityType}) MERGE (e)-[r:IS_A]->(t)", params)
-  }
-
   def buildLinksTo(batch: util.ArrayList[util.Map[String, String]]): Statement = {
     val params = Map("batch" -> batch)
-    new Statement("UNWIND {batch} as batch MATCH (e:Entity {id: batch.entity}) MERGE (u:URI {id: batch.uri}) MERGE (e)-[r:LINKS_TO]->(u)", params)
+    new Statement(
+      """
+        |UNWIND {batch} as batch
+        |MATCH (e:Entity {id: batch.entity})
+        |MERGE (u:URI {id: batch.uri})
+        |MERGE (e)-[r:LINKS_TO]->(u)
+      """.stripMargin, params)
   }
 
-  def buildPredicate(relation: String, batch: util.ArrayList[util.Map[String, String]]): Statement = {
+  def buildPredicate(batch: util.ArrayList[util.Map[String, String]]): Statement = {
     val params = Map("batch" -> batch)
     new Statement(
       s"""
          |UNWIND {batch} as batch
          |MATCH (s:Entity {id: batch.sub})
          |MATCH (o:Entity {id: batch.obj})
-         |MERGE (s)-[r:${relation}]->(o)
-         |ON CREATE SET r.docs = [batch.doc]
-         |ON MATCH SET r.docs = r.docs + [batch.doc]
+         |MERGE (s)-[:RELATION]->(r:Relation {type: batch.rel})-[:RELATION]->(o)
        """.stripMargin, params)
   }
 
-  def buildWikiData(relation: String, batch: util.ArrayList[util.Map[String, String]]): Statement = {
+  def buildWikiData(batch: util.ArrayList[util.Map[String, String]]): Statement = {
     val params = Map("batch" -> batch)
-    new Statement(s"UNWIND {batch} as batch MATCH (u:URI {id: batch.uri}) MERGE (w:WikiDataValue {value: batch.value}) MERGE (u)-[r:${relation}]->(w)", params)
+    new Statement(
+      s"""
+         |UNWIND {batch} as batch
+         |MATCH (u:URI {id: batch.uri})
+         |MERGE (w:WikiDataValue {relation: batch.rel, value: batch.value})
+         |MERGE (u)-[:RELATION]->(w)
+      """.stripMargin, params)
   }
 }
