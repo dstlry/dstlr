@@ -13,8 +13,8 @@ import scala.collection.mutable.Map
   */
 object LoadTriples {
 
-  // Max size of indexes in neo4j
-  val MAX_INDEX_SIZE = 4039
+  // "HAS_STRING" trim length for neo4j
+  val MAX_INDEX_SIZE = 1024
 
   def main(args: Array[String]): Unit = {
 
