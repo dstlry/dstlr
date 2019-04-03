@@ -32,7 +32,9 @@ object LoadTriples {
 
     val start = System.currentTimeMillis()
 
-    val ds = spark.read.parquet(conf.input()).as[TripleRow].coalesce(1)
+    // DataSet with a single partition for bulk loading
+    val ds = spark.read.parquet(conf.input()).as[TripleRow]
+      .coalesce(1)
 
     val notWikiDataValue = ds.filter($"objectType" =!= "WikiDataValue")
 
@@ -50,11 +52,17 @@ object LoadTriples {
 
           val list = new util.ArrayList[util.Map[String, String]]()
           batch.foreach(row => {
+            val labelBytes = row.meta("label").getBytes("UTF-8")
+            val label = if (labelBytes.length > MAX_INDEX_SIZE) {
+              new String(labelBytes.slice(0, MAX_INDEX_SIZE))
+            } else {
+              row.meta("label")
+            }
             list.append(new util.HashMap[String, String]() {
               {
                 put("doc", row.doc)
                 put("entity", row.objectValue)
-                put("label", row.meta("label"))
+                put("label", label)
                 put("type", row.meta("type"))
                 put("index", s"${row.meta("begin")}-${row.meta("end")}")
               }
