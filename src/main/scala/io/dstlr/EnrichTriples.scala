@@ -4,7 +4,7 @@ import java.text.SimpleDateFormat
 
 import com.softwaremill.sttp._
 import org.apache.hadoop.fs.{FileSystem, Path}
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.{Row, SparkSession}
 import ujson.Value
 
 import scala.collection.mutable.ListBuffer
@@ -48,53 +48,43 @@ object EnrichTriples {
         // Standard HTTP backend
         implicit val backend = HttpURLConnectionBackend()
 
-        val list = new ListBuffer[TripleRow]()
+        part.grouped(50).map(group => {
 
-        // WikiData API can take 50 titles at a time
-        part.grouped(50).map(batch => {
+          // Holds extracted triples
+          val list = ListBuffer[TripleRow]()
 
-          // WikiData API takes "|" delimited titles
-          val titles = batch.map(_.getString(0)).mkString("|")
+          val id2title = mapTitles(group)
 
-          // Send the request
-          val resp = sttp.get(uri"https://www.wikidata.org/w/api.php?action=wbgetentities&sites=enwiki&titles=${titles}&languages=en&format=json").send()
+          val ids = id2title.keys.mkString("|")
 
-          // Parse JSON response
+          val resp = sttp.get(uri"https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${ids}&languages=en&format=json").send()
           val json = ujson.read(resp.unsafeBody)
 
           val entities = json("entities")
 
-          for ((ent, idx) <- entities.obj.zipWithIndex) {
+          entities.obj.foreach(entity => {
 
-            // The WikiData ID
-            val id = ent._1
+            val (id, content) = entity
 
-            // The WikiData title
-            val title = batch(idx).getString(0)
+            val title = id2title.get(id).get
+            val claims = content("claims")
 
             println(s"###\n# ${id} -> ${title}\n###")
-            val claims = ent._2("claims")
 
             mapping.value.foreach(map => {
-
-              val (propertyId, relation) = map
-
-              // If the entity has one of our properties...
-              if (claims.obj.contains(propertyId)) {
-
-                println(s"${propertyId} -> ${relation}")
-
-                // Match over relation names (DATE_OF_BIRTH, DATE_OF_DEATH, etc.)
-                map._2 match {
-                  case "DATE_OF_BIRTH" => list.append(extractBirthDate(title, relation, claims(propertyId)))
-                  case "DATE_OF_DEATH" => list.append(extractDeathDate(title, relation, claims(propertyId)))
-                  case "CITY_OF_HEADQUARTERS" => list.append(extractHeadquarters(title, relation, claims(propertyId)))
+              val (property, relation) = map
+              if (claims.obj.contains(property)) {
+                println(s"${property} -> ${relation}")
+                relation match {
+                  case "CITY_OF_HEADQUARTERS" => list.append(extractHeadquarters(title, relation, claims(property)))
+                  case _ => // DUMMY
                 }
               }
             })
-          }
+          })
 
-          list.toList
+          // Return triples
+          list
 
         })
       })
@@ -104,6 +94,42 @@ object EnrichTriples {
 
     spark.stop()
 
+  }
+
+  def mapTitles(group: Seq[Row]): Map[String, String] = {
+
+    // Standard HTTP backend
+    implicit val backend = HttpURLConnectionBackend()
+
+    // Wiki APIs takes "|" delimited titles
+    val titles = group.map(_.getString(0)).mkString("|")
+
+    val resp = sttp.get(uri"https://en.wikipedia.org/w/api.php?action=query&prop=pageprops&ppprop=wikibase_item&redirects=1&format=json&titles=${titles}").send()
+    val json = ujson.read(resp.unsafeBody)
+
+    // Mapping back from normalized title to original title
+    val normalized = json("query")("normalized").arr
+      .map(element => (element("to").str, element("from").str))
+      .toMap
+
+    // Mapping back from re-direct to original
+    val redirects = json("query")("redirects").arr
+      .map(element => (element("to").str, element("from").str))
+      .toMap
+
+    json("query")("pages").obj
+      .filter(row => {
+        // Items without WikiBase entities are returned with IDs -1, -2, -3...
+        !row._1.startsWith("-")
+      })
+      .map(row => {
+        val mappedTitle = row._2("title").str
+        val redirectedTitle = redirects.getOrElse(mappedTitle, mappedTitle)
+        val originalTitle = normalized.getOrElse(redirectedTitle, redirectedTitle)
+        val wikiBaseId = row._2("pageprops")("wikibase_item").str
+        (wikiBaseId, originalTitle)
+      })
+      .toMap
   }
 
   def extractBirthDate(uri: String, relation: String, json: Value): TripleRow = {
