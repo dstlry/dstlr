@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-#!/bin/bash
-
 spark-submit --class io.dstlr.LoadTriples \
         --num-executors 1 --executor-cores 1 \
         --driver-memory 16G --executor-memory 16G \
