@@ -104,14 +104,12 @@ object LoadTriples {
     notWikiDataValue
       .filter($"relation" =!= "MENTIONS")
       .filter($"relation" =!= "LINKS_TO")
-      .rdd
-      .groupBy(row => row.relation)
-      .foreach(part => {
+      .foreachPartition(part => {
 
         val db = GraphDatabase.driver(conf.neoUri(), AuthTokens.basic(conf.neoUsername(), conf.neoPassword()))
         val session = db.session()
 
-        part._2.grouped(conf.neoBatchSize()).foreach(batch => {
+        part.grouped(conf.neoBatchSize()).foreach(batch => {
           triples_acc.add(batch.size)
           val list = new util.ArrayList[util.Map[String, String]]()
           batch.foreach(row => {
@@ -137,14 +135,12 @@ object LoadTriples {
     // WikiDataValue
     ds
       .filter($"objectType" === "WikiDataValue")
-      .rdd
-      .groupBy(row => row.relation)
-      .foreach(part => {
+      .foreachPartition(part => {
 
         val db = GraphDatabase.driver(conf.neoUri(), AuthTokens.basic(conf.neoUsername(), conf.neoPassword()))
         val session = db.session()
 
-        part._2.grouped(conf.neoBatchSize()).foreach(batch => {
+        part.grouped(conf.neoBatchSize()).foreach(batch => {
           triples_acc.add(batch.size)
           val list = new util.ArrayList[util.Map[String, String]]()
           batch.foreach(row => {
