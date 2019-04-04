@@ -7,7 +7,7 @@ import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql.{Row, SparkSession}
 import ujson.Value
 
-import scala.collection.mutable.ListBuffer
+import scala.collection.mutable.{ListBuffer, Map => MMap}
 
 /**
   * Enrich the "LINKS_TO" relationships of our extracted triples using data from WikiData.
@@ -62,26 +62,32 @@ object EnrichTriples {
 
           val entities = json("entities")
 
-          entities.obj.foreach(entity => {
+          entities.obj
+            .filter(entity => id2title.contains(entity._1))
+            .foreach(entity => {
 
-            val (id, content) = entity
+              val (id, content) = entity
 
-            val title = id2title.get(id).get
-            val claims = content("claims")
+              val title = id2title.get(id).get
+              val claims = content("claims")
 
-            println(s"###\n# ${id} -> ${title}\n###")
+              println(s"###\n# ${id} -> ${title}\n###")
 
-            mapping.value.foreach(map => {
-              val (property, relation) = map
-              if (claims.obj.contains(property)) {
-                println(s"${property} -> ${relation}")
-                relation match {
-                  case "CITY_OF_HEADQUARTERS" => list.append(extractHeadquarters(title, relation, claims(property)))
-                  case _ => // DUMMY
+              mapping.value.foreach(map => {
+                val (property, relation) = map
+                if (claims.obj.contains(property)) {
+                  println(s"${property} -> ${relation}")
+                  try {
+                    relation match {
+                      case "CITY_OF_HEADQUARTERS" => list.append(extractHeadquarters(title, relation, claims(property)))
+                      case _ => // DUMMY
+                    }
+                  } catch {
+                    case _ => println(s"Error processing ${id}")
+                  }
                 }
-              }
+              })
             })
-          })
 
           // Return triples
           list
@@ -107,21 +113,24 @@ object EnrichTriples {
     val resp = sttp.get(uri"https://en.wikipedia.org/w/api.php?action=query&prop=pageprops&ppprop=wikibase_item&redirects=1&format=json&titles=${titles}").send()
     val json = ujson.read(resp.unsafeBody)
 
-    // Mapping back from normalized title to original title
-    val normalized = json("query")("normalized").arr
-      .map(element => (element("to").str, element("from").str))
-      .toMap
+    val normalized = MMap[String, String]()
+    val redirects = MMap[String, String]()
 
-    // Mapping back from re-direct to original
-    val redirects = json("query")("redirects").arr
-      .map(element => (element("to").str, element("from").str))
-      .toMap
+    // Mapping back from normalized title to original title
+    json("query")("normalized").arr.foreach(element => normalized(element("to").str) = element("from").str)
+
+    // If the re-directs are present, add to the Map.
+    if (json("query").obj.contains("redirects")) {
+      json("query")("redirects").arr.foreach(element => normalized(element("to").str) = element("from").str)
+    }
 
     json("query")("pages").obj
       .filter(row => {
         // Items without WikiBase entities are returned with IDs -1, -2, -3...
         !row._1.startsWith("-")
       })
+      .filter(_._2.obj.contains("pageprops"))
+      .filter(_._2.obj("pageprops").obj.contains("wikibase_item"))
       .map(row => {
         val mappedTitle = row._2("title").str
         val redirectedTitle = redirects.getOrElse(mappedTitle, mappedTitle)
@@ -147,7 +156,6 @@ object EnrichTriples {
     new TripleRow("wiki", "URI", uri, relation, "WikiDataValue", id2label(wid), null)
   }
 
-  // Go from WikiData ID to Label
   def id2label(id: String): String = {
     implicit val backend = HttpURLConnectionBackend()
     val resp = sttp.get(uri"https://www.wikidata.org/w/api.php?action=wbgetentities&props=labels&ids=${id}&languages=en&format=json").send()
