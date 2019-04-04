@@ -53,41 +53,50 @@ object EnrichTriples {
           // Holds extracted triples
           val list = ListBuffer[TripleRow]()
 
-          val id2title = mapTitles(group)
+          try {
 
-          val ids = id2title.keys.mkString("|")
+            val id2title = mapTitles(group)
 
-          val resp = sttp.get(uri"https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${ids}&languages=en&format=json").send()
-          val json = ujson.read(resp.unsafeBody)
+            val ids = id2title.keys.mkString("|")
 
-          val entities = json("entities")
+            val resp = sttp.get(uri"https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${ids}&languages=en&format=json").send()
+            val json = ujson.read(resp.unsafeBody)
 
-          entities.obj
-            .filter(entity => id2title.contains(entity._1))
-            .foreach(entity => {
+            val entities = json("entities")
 
-              val (id, content) = entity
+            entities.obj
+              .filter(entity => id2title.contains(entity._1))
+              .foreach(entity => {
 
-              val title = id2title.get(id).get
-              val claims = content("claims")
+                val (id, content) = entity
 
-              println(s"###\n# ${id} -> ${title}\n###")
+                val title = id2title.get(id).get
+                val claims = content("claims")
 
-              mapping.value.foreach(map => {
-                val (property, relation) = map
-                if (claims.obj.contains(property)) {
-                  println(s"${property} -> ${relation}")
-                  try {
-                    relation match {
-                      case "CITY_OF_HEADQUARTERS" => list.append(extractHeadquarters(title, relation, claims(property)))
-                      case _ => // DUMMY
+                println(s"###\n# ${id} -> ${title}\n###")
+
+                mapping.value.foreach(map => {
+                  val (property, relation) = map
+                  if (claims.obj.contains(property)) {
+                    println(s"${property} -> ${relation}")
+                    try {
+                      relation match {
+                        case "CITY_OF_HEADQUARTERS" => list.append(extractHeadquarters(title, relation, claims(property)))
+                        case _ => // DUMMY
+                      }
+                    } catch {
+                      case _ => println(s"Error processing ${id}")
                     }
-                  } catch {
-                    case _ => println(s"Error processing ${id}")
                   }
-                }
+                })
               })
-            })
+
+          } catch {
+            case e: Exception => {
+              println(s"Error processing group (${group})")
+              println(e)
+            }
+          }
 
           // Return triples
           list
