@@ -185,8 +185,8 @@ object LoadTriples {
         |MERGE (d:Document {id: batch.doc})
         |MERGE (e:Entity {id: batch.entity, label: batch.label, type: batch.type})
         |MERGE (d)-[r:MENTIONS]->(e)
-        |ON CREATE SET r.index = [batch.index]
-        |ON MATCH SET r.index = r.index + [batch.index]
+        |ON CREATE SET e.index = [batch.index]
+        |ON MATCH SET e.index = e.index + [batch.index]
       """.stripMargin, params)
   }
 
