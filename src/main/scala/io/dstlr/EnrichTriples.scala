@@ -85,7 +85,7 @@ object EnrichTriples {
                         case _ => // DUMMY
                       }
                     } catch {
-                      case _ => println(s"Error processing ${id}")
+                      case t: Throwable => println(s"Error processing ${id} - ${t}")
                     }
                   }
                 })
