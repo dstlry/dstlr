@@ -208,7 +208,7 @@ object LoadTriples {
          |UNWIND {batch} as batch
          |MATCH (s:Entity {id: batch.sub})
          |MATCH (o:Entity {id: batch.obj})
-         |MERGE (s)-[:RELATION]->(r:Relation {type: batch.rel})-[:RELATION]->(o)
+         |MERGE (s)-[:SUBJECT_OF]->(r:Relation {type: batch.rel})-[:OBJECT_OF]->(o)
        """.stripMargin, params)
   }
 
@@ -219,7 +219,7 @@ object LoadTriples {
          |UNWIND {batch} as batch
          |MATCH (u:URI {id: batch.uri})
          |MERGE (w:WikiDataValue {relation: batch.rel, value: batch.value})
-         |MERGE (u)-[:RELATION]->(w)
+         |MERGE (u)-[:HAS_VALUE]->(w)
       """.stripMargin, params)
   }
 }
