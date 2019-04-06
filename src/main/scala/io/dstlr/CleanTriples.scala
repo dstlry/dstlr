@@ -34,6 +34,7 @@ object CleanTriples {
 
     Neo4j(spark.sparkContext)
       .cypher("MATCH (d:Document)-->(s:Entity)-->(r:Relation {type: \"CITY_OF_HEADQUARTERS\"})-->(o:Entity) MATCH (s)-->(u:URI)-->(w:WikiDataValue {relation: r.type}) RETURN d, s, r, o, u, w")
+      .partitions(conf.partitions())
       .loadNodeRdds
       .map(row => {
 
@@ -61,7 +62,7 @@ object CleanTriples {
 
       })
       .filter(row => row != null)
-      .saveAsTextFile("cleaning")
+      .saveAsTextFile(conf.output())
 
     val duration = System.currentTimeMillis() - start
     println(s"Received ${result_acc.value} results and cleaned ${dirty_acc.value} in ${duration}ms @ ${result_acc.value / (duration / 1000)} result/s")
