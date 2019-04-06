@@ -52,16 +52,16 @@ object CleanTriples {
         val observed = obj.get("label").asString()
         val truth = wdv.get("value").asString()
 
-        if (observed == truth) {
-          null
+        val dirty = observed != truth
+
+        if (dirty) {
+          dirty_acc.add(1)
         }
 
-        dirty_acc.add(1)
-
-        (docId, indexes, observed, truth)
+        (docId, indexes, observed, truth, dirty)
 
       })
-      .filter(row => row != null)
+      .filter(row => row._5)
       .saveAsTextFile(conf.output())
 
     val duration = System.currentTimeMillis() - start
