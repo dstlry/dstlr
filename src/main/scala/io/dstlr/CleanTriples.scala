@@ -48,7 +48,7 @@ object CleanTriples {
         val wdv = row.get(5).asInstanceOf[InternalNode]
 
         val docId = doc.get("id").asString()
-        val indexes = obj.get("indexes").asList()
+        val indexes = obj.get("index").asList()
         val observed = obj.get("label").asString()
         val truth = wdv.get("value").asString()
 
