@@ -183,7 +183,7 @@ object LoadTriples {
       """
         |UNWIND {batch} as batch
         |MERGE (d:Document {id: batch.doc})
-        |MERGE (e:Entity {id: batch.entity, label: batch.label, type: batch.type})
+        |MERGE (e:Mention {id: batch.entity, label: batch.label, class: batch.type})
         |MERGE (d)-[r:MENTIONS]->(e)
         |ON CREATE SET e.index = [batch.index]
         |ON MATCH SET e.index = e.index + [batch.index]
@@ -195,8 +195,8 @@ object LoadTriples {
     new Statement(
       """
         |UNWIND {batch} as batch
-        |MATCH (e:Entity {id: batch.entity})
-        |MERGE (u:URI {id: batch.uri})
+        |MATCH (e:Mention {id: batch.entity})
+        |MERGE (u:Entity {id: batch.uri})
         |MERGE (e)-[r:LINKS_TO]->(u)
       """.stripMargin, params)
   }
@@ -206,8 +206,8 @@ object LoadTriples {
     new Statement(
       s"""
          |UNWIND {batch} as batch
-         |MATCH (s:Entity {id: batch.sub})
-         |MATCH (o:Entity {id: batch.obj})
+         |MATCH (s:Mention {id: batch.sub})
+         |MATCH (o:Mention {id: batch.obj})
          |MERGE (s)-[:SUBJECT_OF]->(r:Relation {type: batch.rel})-[:OBJECT_OF]->(o)
        """.stripMargin, params)
   }
@@ -217,8 +217,8 @@ object LoadTriples {
     new Statement(
       s"""
          |UNWIND {batch} as batch
-         |MATCH (u:URI {id: batch.uri})
-         |MERGE (w:WikiDataValue {relation: batch.rel, value: batch.value})
+         |MATCH (u:Entity {id: batch.uri})
+         |MERGE (w:Fact {relation: batch.rel, value: batch.value})
          |MERGE (u)-[:HAS_VALUE]->(w)
       """.stripMargin, params)
   }
