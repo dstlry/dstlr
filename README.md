@@ -1,6 +1,6 @@
 # dstlr
 
-`dstlr` is a system for large-scale knowledge extraction using [Apache Spark](https://spark.apache.org/), [Stanford CoreNLP](https://stanfordnlp.github.io/CoreNLP/), and [neo4j](https://neo4j.com/). It takes a (potentially large) collection of text documents and horiztonally scales out CoreNLP via Spark to extract mentions of named entities, the relations between them, and links to an entity in a knowledge base. From this, we generate a knowledge graph from the unstructured text for which we can pose interesting queries via neo4j's Cypher query language. We show a number of interesting uses cases for data cleaning.
+`dstlr` is a system for large-scale knowledge extraction using [Stanford CoreNLP](https://stanfordnlp.github.io/CoreNLP/), [Apache Spark](https://spark.apache.org/), and [neo4j](https://neo4j.com/). It takes a (potentially large) collection of text documents and horiztonally scales out CoreNLP via Spark to extract mentions of named entities, the relations between them, and links to an entity in a knowledge base. From this, we generate a knowledge graph from the unstructured text for which we can pose interesting queries via neo4j's Cypher query language. We show a number of interesting uses cases for data cleaning.
 
 # Setup
 
