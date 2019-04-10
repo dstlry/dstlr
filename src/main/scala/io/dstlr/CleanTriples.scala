@@ -33,7 +33,7 @@ object CleanTriples {
     val dirty_acc = spark.sparkContext.longAccumulator("dirty")
 
     Neo4j(spark.sparkContext)
-      .cypher("MATCH (d:Document)-->(s:Entity)-->(r:Relation {type: \"CITY_OF_HEADQUARTERS\"})-->(o:Entity) MATCH (s)-->(u:URI)-->(w:WikiDataValue {relation: r.type}) RETURN d, s, r, o, u, w")
+      .cypher("MATCH (d:Document)-->(s:Mention)-->(r:Relation {type: \"CITY_OF_HEADQUARTERS\"})-->(o:Mention) MATCH (s)-->(e:Entity)-->(f:Fact {relation: r.type}) RETURN d, s, r, o, e, f")
       .partitions(conf.partitions())
       .loadNodeRdds
       .map(row => {
@@ -44,13 +44,13 @@ object CleanTriples {
         val sub = row.get(1).asInstanceOf[InternalNode]
         val rel = row.get(2).asInstanceOf[InternalNode]
         val obj = row.get(3).asInstanceOf[InternalNode]
-        val uri = row.get(4).asInstanceOf[InternalNode]
-        val wdv = row.get(5).asInstanceOf[InternalNode]
+        val ent = row.get(4).asInstanceOf[InternalNode]
+        val fact = row.get(5).asInstanceOf[InternalNode]
 
         val docId = doc.get("id").asString()
         val indexes = obj.get("index").asList()
-        val observed = obj.get("label").asString()
-        val truth = wdv.get("value").asString()
+        val observed = obj.get("span").asString()
+        val truth = fact.get("value").asString()
 
         val dirty = observed != truth
 

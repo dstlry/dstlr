@@ -5,13 +5,13 @@ import org.rogach.scallop.{ScallopConf, Serialization}
 package object dstlr {
 
   // Row for spark-solr results based on Anserini's schema
-  case class SolrRow(id: String, contents: String)
+  case class DocumentRow(id: String, contents: String)
 
   // Row for the CoreNLP extractions
   case class TripleRow(doc: String, subjectType: String, subjectValue: String, relation: String, objectType: String, objectValue: String, meta: Map[String, String])
 
   // Row for mapping from WikiData property ID to relation name
-  case class WikiDataMappingRow(property: String, relation: String)
+  case class KnowledgeGraphMappingRow(property: String, relation: String)
 
   class Conf(args: Seq[String]) extends ScallopConf(args) with Serialization {
 

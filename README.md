@@ -26,8 +26,8 @@ CREATE INDEX ON :Fact(relation, value)
 CREATE INDEX ON :Mention(id)
 CREATE INDEX ON :Mention(class)
 CREATE INDEX ON :Mention(index)
-CREATE INDEX ON :Mention(label)
-CREATE INDEX ON :Mention(id, label, class)
+CREATE INDEX ON :Mention(span)
+CREATE INDEX ON :Mention(id, class, span)
 CREATE INDEX ON :Relation(type)
 ```
 

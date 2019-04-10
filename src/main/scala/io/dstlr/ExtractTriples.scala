@@ -4,6 +4,7 @@ import java.util.{Properties, UUID}
 
 import edu.stanford.nlp.ie.util.RelationTriple
 import edu.stanford.nlp.pipeline.{CoreDocument, CoreEntityMention, StanfordCoreNLP}
+import edu.stanford.nlp.simple.Document
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql.SparkSession
 
@@ -15,29 +16,17 @@ import scala.collection.mutable.{ListBuffer, Map => MMap}
   */
 object ExtractTriples {
 
-  object CoreNLP {
-
-    // Used for filtering out documents with sentences too long for the KBPAnnotator
-    @transient lazy val ssplit = new StanfordCoreNLP(new Properties() {
-      {
-        setProperty("annotators", "tokenize,ssplit")
-        setProperty("threads", "8")
-      }
-    })
-
-    // Used for the full NER, KBP, and entity linking
-    @transient lazy val nlp = new StanfordCoreNLP(new Properties() {
-      {
-        setProperty("annotators", "tokenize,ssplit,pos,lemma,parse,ner,coref,kbp,entitylink")
-        setProperty("ner.applyFineGrained", "false")
-        setProperty("ner.applyNumericClassifiers", "false")
-        setProperty("ner.useSUTime", "false")
-        setProperty("coref.algorithm", "statistical")
-        setProperty("threads", "8")
-        setProperty("parse.model", "edu/stanford/nlp/models/srparser/englishSR.ser.gz")
-      }
-    })
-  }
+  // Used for the full NER, KBP, and entity linking
+  @transient lazy val nlp = new StanfordCoreNLP(new Properties() {
+    {
+      setProperty("annotators", "tokenize,ssplit,pos,lemma,parse,ner,coref,kbp,entitylink")
+      setProperty("ner.applyNumericClassifiers", "false")
+      setProperty("ner.useSUTime", "false")
+      setProperty("coref.algorithm", "statistical")
+      setProperty("threads", "8")
+      setProperty("parse.model", "edu/stanford/nlp/models/srparser/englishSR.ser.gz")
+    }
+  })
 
   def main(args: Array[String]): Unit = {
 
@@ -62,36 +51,32 @@ object ExtractTriples {
     // Delete old output directory
     FileSystem.get(spark.sparkContext.hadoopConfiguration).delete(new Path(conf.output()), true)
 
-    // Options for spark-solr
-    val options = Map(
-      "collection" -> conf.solrIndex(),
-      "query" -> conf.query(),
-      "fields" -> conf.fields(),
-      "rows" -> conf.rows(),
-      "zkhost" -> conf.solrUri()
-    )
-
     // Start time
     val start = System.currentTimeMillis()
 
-    // Create a DataFrame with the query results
-    val ds = spark.read.format("solr")
-      .options(options)
-      .load()
-      .as[SolrRow]
+    //    // Parse JSON -> map to (id, list of content) -> filter out non-paragraphs -> map to HTML-less strings -> concat paragraphs into document
+    //    val ds = spark.sparkContext.textFile(conf.input())
+    //      .map(ujson.read(_))
+    //      .map(json => (json("id").str, json("contents").arr.filter(_ != ujson.Null)))
+    //      .map(json => (json._1, json._2.filter(x => x.obj.getOrDefault("type", "").str == "sanitized_html")))
+    //      .map(json => (json._1, json._2.filter(x => x.obj.getOrDefault("subtype", "").str == "paragraph")))
+    //      .map(json => (json._1, json._2.map(x => Jsoup.parse(x.obj.getOrDefault("content", "").str).text())))
+    //      .map(json => (json._1, json._2.mkString(" ")))
+    //      .toDF("id", "contents")
+    //      .as[DocumentRow]
 
-    ds.printSchema()
+    // Test data
+    val ds = spark.sparkContext.parallelize(Seq("Apple is a company based in Cupertino.", "Steve Jobs is the CEO of Apple."))
+      .zipWithIndex()
+      .map(_.swap)
+      .toDF("id", "contents")
+      .as[DocumentRow]
 
     val result = ds
       .repartition(conf.partitions())
-      .filter(row => row.id != null && row.id.nonEmpty)
-      .filter(row => row.contents != null && row.contents.nonEmpty)
-      .filter(row => row.contents.split(" ").length <= conf.docLengthThreshold())
-      .filter(row => {
-        val doc = new CoreDocument(row.contents)
-        CoreNLP.ssplit.annotate(doc)
-        doc.sentences().forall(sent => sent.tokens().size() <= conf.sentLengthThreshold())
-      })
+      .filter(doc => doc.id != null && doc.id.nonEmpty)
+      .filter(doc => doc.contents != null && doc.contents.nonEmpty)
+      .filter(doc => new Document(doc.contents).sentences().forall(_.tokens().size() <= conf.sentLengthThreshold()))
       .mapPartitions(part => {
 
         // The extracted triples
@@ -117,7 +102,7 @@ object ExtractTriples {
 
             // Create and annotate the CoreNLP Document
             val doc = new CoreDocument(row.contents)
-            CoreNLP.nlp.annotate(doc)
+            nlp.annotate(doc)
 
             // Increment # tokens
             token_acc.add(doc.tokens().size())
@@ -156,7 +141,7 @@ object ExtractTriples {
         })
 
         // Log timing info
-        println(CoreNLP.nlp.timingInformation())
+        println(nlp.timingInformation())
 
         mapped
 
@@ -180,23 +165,23 @@ object ExtractTriples {
       .mkString(" ")
   }
 
-  def buildMention(doc: String, entity: String, mention: CoreEntityMention): TripleRow = {
-    new TripleRow(doc, "Document", doc, "MENTIONS", "Entity", entity, Map(
-      "label" -> mention.text(),
-      "type" -> mention.entityType(),
-      "begin" -> mention.charOffsets().first.toString,
-      "end" -> mention.charOffsets().second.toString)
+  def buildMention(doc: String, mention: String, coreEntityMention: CoreEntityMention): TripleRow = {
+    new TripleRow(doc, "Document", doc, "MENTIONS", "Mention", mention, Map(
+      "class" -> coreEntityMention.entityType(),
+      "span" -> coreEntityMention.text(),
+      "begin" -> coreEntityMention.charOffsets().first.toString,
+      "end" -> coreEntityMention.charOffsets().second.toString)
     )
   }
 
-  def buildLinksTo(doc: String, entity: String, uri: String): TripleRow = {
-    new TripleRow(doc, "Entity", entity, "LINKS_TO", "URI", uri, null)
+  def buildLinksTo(doc: String, mention: String, uri: String): TripleRow = {
+    new TripleRow(doc, "Mention", mention, "LINKS_TO", "Entity", uri, null)
   }
 
   def buildRelation(doc: String, uuids: MMap[String, UUID], triple: RelationTriple): TripleRow = {
     val sub = uuids.getOrDefault(triple.subjectLemmaGloss(), null).toString
     val rel = triple.relationGloss().split(":")(1).toUpperCase()
     val obj = uuids.getOrDefault(triple.objectLemmaGloss(), null).toString
-    new TripleRow(doc, "Entity", sub, rel, "Entity", obj, null)
+    new TripleRow(doc, "Mention", sub, rel, "Mention", obj, null)
   }
 }

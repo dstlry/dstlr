@@ -2,7 +2,7 @@ name := "dstlr"
 
 version := "0.1"
 
-scalaVersion := "2.11.6"
+scalaVersion := "2.11.12"
 
 mainClass in assembly := Some("io.dstlr.Spark")
 
@@ -26,6 +26,9 @@ libraryDependencies += "neo4j-contrib" % "neo4j-spark-connector" % "2.1.0-M4"
 
 // https://mvnrepository.com/artifact/org.apache.spark/spark-core
 libraryDependencies += "org.apache.spark" %% "spark-core" % "2.4.0" exclude("org.slf4j", "slf4j-log4j12") exclude("org.apache.logging.log4j", "log4j-slf4j-impl")
+
+// https://mvnrepository.com/artifact/org.jsoup/jsoup
+libraryDependencies += "org.jsoup" % "jsoup" % "1.11.3"
 
 // https://mvnrepository.com/artifact/org.neo4j.driver/neo4j-java-driver
 libraryDependencies += "org.neo4j.driver" % "neo4j-java-driver" % "1.7.2"
