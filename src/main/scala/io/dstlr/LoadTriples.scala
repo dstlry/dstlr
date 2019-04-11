@@ -36,7 +36,7 @@ object LoadTriples {
     val ds = spark.read.parquet(conf.input()).as[TripleRow]
       .coalesce(1)
 
-    val notWikiDataValue = ds.filter($"objectType" =!= "WikiDataValue")
+    val notWikiDataValue = ds.filter($"objectType" =!= "Fact")
 
     // MENTIONS
     notWikiDataValue
@@ -52,18 +52,18 @@ object LoadTriples {
 
           val list = new util.ArrayList[util.Map[String, String]]()
           batch.foreach(row => {
-            val labelBytes = row.meta("label").getBytes("UTF-8")
-            val label = if (labelBytes.length > MAX_INDEX_SIZE) {
-              new String(labelBytes.slice(0, MAX_INDEX_SIZE))
+            val spanBytes = row.meta("span").getBytes("UTF-8")
+            val span = if (spanBytes.length > MAX_INDEX_SIZE) {
+              new String(spanBytes.slice(0, MAX_INDEX_SIZE))
             } else {
-              row.meta("label")
+              row.meta("span")
             }
             list.append(new util.HashMap[String, String]() {
               {
                 put("doc", row.doc)
-                put("entity", row.objectValue)
-                put("label", label)
-                put("type", row.meta("type"))
+                put("mention", row.objectValue)
+                put("class", row.meta("class"))
+                put("span", span)
                 put("index", s"${row.meta("begin")}-${row.meta("end")}")
               }
             })
@@ -93,8 +93,8 @@ object LoadTriples {
           batch.foreach(row => {
             list.append(new util.HashMap[String, String]() {
               {
-                put("entity", row.subjectValue)
-                put("uri", row.objectValue)
+                put("mention", row.subjectValue)
+                put("entity", row.objectValue)
               }
             })
           })
@@ -124,9 +124,9 @@ object LoadTriples {
             list.append(new util.HashMap[String, String]() {
               {
                 put("doc", row.doc)
-                put("sub", row.subjectValue)
-                put("rel", row.relation)
-                put("obj", row.objectValue)
+                put("subject", row.subjectValue)
+                put("relation", row.relation)
+                put("object", row.objectValue)
               }
             })
           })
@@ -142,7 +142,7 @@ object LoadTriples {
 
     // WikiDataValue
     ds
-      .filter($"objectType" === "WikiDataValue")
+      .filter($"objectType" === "Fact")
       .foreachPartition(part => {
 
         val db = GraphDatabase.driver(conf.neoUri(), AuthTokens.basic(conf.neoUsername(), conf.neoPassword()))
@@ -154,8 +154,8 @@ object LoadTriples {
           batch.foreach(row => {
             list.append(new util.HashMap[String, String]() {
               {
-                put("uri", row.subjectValue)
-                put("rel", row.relation)
+                put("entity", row.subjectValue)
+                put("relation", row.relation)
                 put("value", row.objectValue)
               }
             })
@@ -183,10 +183,10 @@ object LoadTriples {
       """
         |UNWIND {batch} as batch
         |MERGE (d:Document {id: batch.doc})
-        |MERGE (e:Mention {id: batch.entity, label: batch.label, class: batch.type})
-        |MERGE (d)-[r:MENTIONS]->(e)
-        |ON CREATE SET e.index = [batch.index]
-        |ON MATCH SET e.index = e.index + [batch.index]
+        |MERGE (m:Mention {id: batch.mention, class: batch.class, span: batch.span})
+        |MERGE (d)-[r:MENTIONS]->(m)
+        |ON CREATE SET m.index = [batch.index]
+        |ON MATCH SET m.index = m.index + [batch.index]
       """.stripMargin, params)
   }
 
@@ -195,9 +195,9 @@ object LoadTriples {
     new Statement(
       """
         |UNWIND {batch} as batch
-        |MATCH (e:Mention {id: batch.entity})
-        |MERGE (u:Entity {id: batch.uri})
-        |MERGE (e)-[r:LINKS_TO]->(u)
+        |MATCH (m:Mention {id: batch.mention})
+        |MERGE (e:Entity {id: batch.entity})
+        |MERGE (m)-[r:LINKS_TO]->(e)
       """.stripMargin, params)
   }
 
@@ -206,9 +206,9 @@ object LoadTriples {
     new Statement(
       s"""
          |UNWIND {batch} as batch
-         |MATCH (s:Mention {id: batch.sub})
-         |MATCH (o:Mention {id: batch.obj})
-         |MERGE (s)-[:SUBJECT_OF]->(r:Relation {type: batch.rel})-[:OBJECT_OF]->(o)
+         |MATCH (s:Mention {id: batch.subject})
+         |MATCH (o:Mention {id: batch.object})
+         |MERGE (s)-[:SUBJECT_OF]->(r:Relation {type: batch.relation})-[:OBJECT_OF]->(o)
        """.stripMargin, params)
   }
 
@@ -217,9 +217,9 @@ object LoadTriples {
     new Statement(
       s"""
          |UNWIND {batch} as batch
-         |MATCH (u:Entity {id: batch.uri})
-         |MERGE (w:Fact {relation: batch.rel, value: batch.value})
-         |MERGE (u)-[:HAS_VALUE]->(w)
+         |MATCH (e:Entity {id: batch.entity})
+         |MERGE (f:Fact {relation: batch.relation, value: batch.value})
+         |MERGE (e)-[:HAS_FACT]->(f)
       """.stripMargin, params)
   }
 }

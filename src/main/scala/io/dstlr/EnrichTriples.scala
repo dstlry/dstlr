@@ -30,7 +30,7 @@ object EnrichTriples {
     import spark.implicits._
 
     val mapping = spark.sparkContext.broadcast(
-      spark.read.option("header", "true").csv("wikidata.csv").as[WikiDataMappingRow].rdd.map(row => (row.property, row.relation)).collectAsMap()
+      spark.read.option("header", "true").csv("wikidata.csv").as[KnowledgeGraphMappingRow].rdd.map(row => (row.property, row.relation)).collectAsMap()
     )
 
     // Delete old output directory
@@ -152,17 +152,17 @@ object EnrichTriples {
 
   def extractBirthDate(uri: String, relation: String, json: Value): TripleRow = {
     val date = dateFormat.parse(json(0)("mainsnak")("datavalue")("value")("time").str)
-    new TripleRow("wiki", "URI", uri, relation, "WikiDataValue", printFormat.format(date), null)
+    new TripleRow("wiki", "Entity", uri, relation, "Fact", printFormat.format(date), null)
   }
 
   def extractDeathDate(uri: String, relation: String, json: Value): TripleRow = {
     val date = dateFormat.parse(json(0)("mainsnak")("datavalue")("value")("time").str)
-    new TripleRow("wiki", "URI", uri, relation, "WikiDataValue", printFormat.format(date), null)
+    new TripleRow("wiki", "Entity", uri, relation, "Fact", printFormat.format(date), null)
   }
 
   def extractHeadquarters(uri: String, relation: String, json: Value): TripleRow = {
     val wid = json(0)("mainsnak")("datavalue")("value")("id").str
-    new TripleRow("wiki", "URI", uri, relation, "WikiDataValue", id2label(wid), null)
+    new TripleRow("wiki", "Entity", uri, relation, "Fact", id2label(wid), null)
   }
 
   def id2label(id: String): String = {
