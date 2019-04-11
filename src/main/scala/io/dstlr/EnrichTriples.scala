@@ -25,6 +25,7 @@ object EnrichTriples {
     val spark = SparkSession
       .builder()
       .appName("dstlr - EnrichTriples")
+      .master("local[*]")
       .getOrCreate()
 
     import spark.implicits._

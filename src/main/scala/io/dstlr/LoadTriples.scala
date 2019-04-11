@@ -24,6 +24,7 @@ object LoadTriples {
     val spark = SparkSession
       .builder()
       .appName("dstlr - LoadTriples")
+      .master("local[*]")
       .getOrCreate()
 
     import spark.implicits._

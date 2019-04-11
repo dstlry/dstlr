@@ -7,6 +7,7 @@ import edu.stanford.nlp.pipeline.{CoreDocument, CoreEntityMention, StanfordCoreN
 import edu.stanford.nlp.simple.Document
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql.SparkSession
+import org.jsoup.Jsoup
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable.{ListBuffer, Map => MMap}
@@ -54,23 +55,23 @@ object ExtractTriples {
     // Start time
     val start = System.currentTimeMillis()
 
-    //    // Parse JSON -> map to (id, list of content) -> filter out non-paragraphs -> map to HTML-less strings -> concat paragraphs into document
-    //    val ds = spark.sparkContext.textFile(conf.input())
-    //      .map(ujson.read(_))
-    //      .map(json => (json("id").str, json("contents").arr.filter(_ != ujson.Null)))
-    //      .map(json => (json._1, json._2.filter(x => x.obj.getOrDefault("type", "").str == "sanitized_html")))
-    //      .map(json => (json._1, json._2.filter(x => x.obj.getOrDefault("subtype", "").str == "paragraph")))
-    //      .map(json => (json._1, json._2.map(x => Jsoup.parse(x.obj.getOrDefault("content", "").str).text())))
-    //      .map(json => (json._1, json._2.mkString(" ")))
-    //      .toDF("id", "contents")
-    //      .as[DocumentRow]
-
-    // Test data
-    val ds = spark.sparkContext.parallelize(Seq("Apple is a company based in Cupertino.", "Steve Jobs is the CEO of Apple."))
-      .zipWithIndex()
-      .map(_.swap)
+    // Parse JSON -> map to (id, list of content) -> filter out non-paragraphs -> map to HTML-less strings -> concat paragraphs into document
+    val ds = spark.sparkContext.textFile(conf.input())
+      .map(ujson.read(_))
+      .map(json => (json("id").str, json("contents").arr.filter(_ != ujson.Null)))
+      .map(json => (json._1, json._2.filter(x => x.obj.getOrDefault("type", "").str == "sanitized_html")))
+      .map(json => (json._1, json._2.filter(x => x.obj.getOrDefault("subtype", "").str == "paragraph")))
+      .map(json => (json._1, json._2.map(x => Jsoup.parse(x.obj.getOrDefault("content", "").str).text())))
+      .map(json => (json._1, json._2.mkString(" ")))
       .toDF("id", "contents")
       .as[DocumentRow]
+
+    //    // Test data
+    //    val ds = spark.sparkContext.parallelize(Seq("Apple is a company based in Cupertino.", "Steve Jobs is the CEO of Apple."))
+    //      .zipWithIndex()
+    //      .map(_.swap)
+    //      .toDF("id", "contents")
+    //      .as[DocumentRow]
 
     val result = ds
       .repartition(conf.partitions())
