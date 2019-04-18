@@ -20,6 +20,7 @@ package object dstlr {
     val output = opt[String](default = Some("triples"))
 
     // Solr
+    val solr = opt[Boolean](default = Some(false))
     val solrUri = opt[String](name = "solr.uri", default = Some("localhost:9983"))
     val solrIndex = opt[String](name = "solr.index", default = Some("core18"))
     val query = opt[String](name = "query", default = Some("*:*"))
