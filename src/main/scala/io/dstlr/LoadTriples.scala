@@ -36,10 +36,10 @@ object LoadTriples {
     val ds = spark.read.parquet(conf.input()).as[TripleRow]
       .coalesce(1)
 
-    val notWikiDataValue = ds.filter($"objectType" =!= "Fact")
+    val notFact = ds.filter($"objectType" =!= "Fact")
 
     // MENTIONS
-    notWikiDataValue
+    notFact
       .filter($"relation" === "MENTIONS")
       .foreachPartition(part => {
 
@@ -80,7 +80,7 @@ object LoadTriples {
       })
 
     // LINKS_TO
-    notWikiDataValue
+    notFact
       .filter($"relation" === "LINKS_TO" && $"objectValue".isNotNull)
       .foreachPartition(part => {
 
@@ -109,7 +109,7 @@ object LoadTriples {
 
       })
 
-    notWikiDataValue
+    notFact
       .filter($"relation" =!= "MENTIONS")
       .filter($"relation" =!= "LINKS_TO")
       .foreachPartition(part => {
@@ -127,6 +127,7 @@ object LoadTriples {
                 put("subject", row.subjectValue)
                 put("relation", row.relation)
                 put("object", row.objectValue)
+                put("confidence", row.meta("confidence"))
               }
             })
           })
@@ -208,7 +209,7 @@ object LoadTriples {
          |UNWIND {batch} as batch
          |MATCH (s:Mention {id: batch.subject})
          |MATCH (o:Mention {id: batch.object})
-         |MERGE (s)-[:SUBJECT_OF]->(r:Relation {type: batch.relation})-[:OBJECT_OF]->(o)
+         |MERGE (s)-[:SUBJECT_OF]->(r:Relation {type: batch.relation, confidence: batch.confidence})-[:OBJECT_OF]->(o)
        """.stripMargin, params)
   }
 

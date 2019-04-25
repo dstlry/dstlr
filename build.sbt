@@ -4,8 +4,6 @@ version := "0.1"
 
 scalaVersion := "2.11.12"
 
-mainClass in assembly := Some("io.dstlr.Spark")
-
 resolvers += "Restlet Repository" at "http://maven.restlet.org"
 resolvers += "Spark Packages Repo" at "http://dl.bintray.com/spark-packages/maven"
 
@@ -23,6 +21,9 @@ libraryDependencies += "edu.stanford.nlp" % "stanford-corenlp" % "3.9.2"
 libraryDependencies += "edu.stanford.nlp" % "stanford-corenlp" % "3.9.2" classifier "models-english" classifier "models-english-kbp"
 
 libraryDependencies += "neo4j-contrib" % "neo4j-spark-connector" % "2.1.0-M4"
+
+// https://mvnrepository.com/artifact/org.apache.solr/solr-solrj
+libraryDependencies += "org.apache.solr" % "solr-solrj" % "8.0.0"
 
 // https://mvnrepository.com/artifact/org.apache.spark/spark-core
 libraryDependencies += "org.apache.spark" %% "spark-core" % "2.4.0" exclude("org.slf4j", "slf4j-log4j12") exclude("org.apache.logging.log4j", "log4j-slf4j-impl")

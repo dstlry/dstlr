@@ -214,6 +214,6 @@ object ExtractTriples {
     val sub = uuids.getOrDefault(triple.subjectLemmaGloss(), null).toString
     val rel = triple.relationGloss().split(":")(1).toUpperCase()
     val obj = uuids.getOrDefault(triple.objectLemmaGloss(), null).toString
-    new TripleRow(doc, "Mention", sub, rel, "Mention", obj, null)
+    new TripleRow(doc, "Mention", sub, rel, "Mention", obj, Map("confidence" -> triple.confidenceGloss()))
   }
 }
