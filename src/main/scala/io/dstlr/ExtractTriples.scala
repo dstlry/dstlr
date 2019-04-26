@@ -3,6 +3,7 @@ package io.dstlr
 import java.util.{Properties, UUID}
 
 import edu.stanford.nlp.ie.util.RelationTriple
+import edu.stanford.nlp.ling.CoreAnnotations
 import edu.stanford.nlp.pipeline.{CoreDocument, CoreEntityMention, StanfordCoreNLP}
 import edu.stanford.nlp.simple.Document
 import org.apache.hadoop.fs.{FileSystem, Path}
@@ -21,8 +22,6 @@ object ExtractTriples {
   @transient lazy val nlp = new StanfordCoreNLP(new Properties() {
     {
       setProperty("annotators", "tokenize,ssplit,pos,lemma,parse,ner,coref,kbp,entitylink")
-      setProperty("ner.applyNumericClassifiers", "false")
-      setProperty("ner.useSUTime", "false")
       setProperty("coref.algorithm", "statistical")
       setProperty("threads", "8")
       setProperty("parse.model", "edu/stanford/nlp/models/srparser/englishSR.ser.gz")
@@ -98,8 +97,6 @@ object ExtractTriples {
 
             // For eacn sentence...
             doc.sentences().foreach(sentence => {
-
-              // Extract "MENTIONS", "HAS_STRING", "IS_A", and "LINKS_TO" relations
               sentence.entityMentions().foreach(mention => {
 
                 // Get or set the UUID
@@ -152,22 +149,22 @@ object ExtractTriples {
     import spark.implicits._
 
     // Parse JSON -> map to (id, list of content) -> filter out non-paragraphs -> map to HTML-less strings -> concat paragraphs into document
-    spark.sparkContext.textFile(conf.input())
-      .map(ujson.read(_))
-      .map(json => (json("id").str, json("contents").arr.filter(_ != ujson.Null)))
-      .map(json => (json._1, json._2.filter(x => x.obj.getOrDefault("type", "").str == "sanitized_html")))
-      .map(json => (json._1, json._2.filter(x => x.obj.getOrDefault("subtype", "").str == "paragraph")))
-      .map(json => (json._1, json._2.map(x => Jsoup.parse(x.obj.getOrDefault("content", "").str).text())))
-      .map(json => (json._1, json._2.mkString(" ")))
-      .toDF("id", "contents")
-      .as[DocumentRow]
-
-    //    // Test data
-    //    val ds = spark.sparkContext.parallelize(Seq("Apple is a company based in Cupertino.", "Steve Jobs is the CEO of Apple."))
-    //      .zipWithIndex()
-    //      .map(_.swap)
+    //    spark.sparkContext.textFile(conf.input())
+    //      .map(ujson.read(_))
+    //      .map(json => (json("id").str, json("contents").arr.filter(_ != ujson.Null)))
+    //      .map(json => (json._1, json._2.filter(x => x.obj.getOrDefault("type", "").str == "sanitized_html")))
+    //      .map(json => (json._1, json._2.filter(x => x.obj.getOrDefault("subtype", "").str == "paragraph")))
+    //      .map(json => (json._1, json._2.map(x => Jsoup.parse(x.obj.getOrDefault("content", "").str).text())))
+    //      .map(json => (json._1, json._2.mkString(" ")))
     //      .toDF("id", "contents")
     //      .as[DocumentRow]
+
+    // Test data
+    spark.sparkContext.parallelize(Seq("Barack Obama was born on August 4th, 1961.", "Apple is based in Cupertino."))
+      .zipWithIndex()
+      .map(_.swap)
+      .toDF("id", "contents")
+      .as[DocumentRow]
 
   }
 
@@ -197,13 +194,23 @@ object ExtractTriples {
       .mkString(" ")
   }
 
-  def buildMention(doc: String, mention: String, coreEntityMention: CoreEntityMention): TripleRow = {
-    new TripleRow(doc, "Document", doc, "MENTIONS", "Mention", mention, Map(
-      "class" -> coreEntityMention.entityType(),
-      "span" -> coreEntityMention.text(),
-      "begin" -> coreEntityMention.charOffsets().first.toString,
-      "end" -> coreEntityMention.charOffsets().second.toString)
+  def buildMention(doc: String, uuid: String, mention: CoreEntityMention): TripleRow = {
+
+    val meta = MMap(
+      "class" -> mention.entityType(),
+      "span" -> mention.text(),
+      "begin" -> mention.charOffsets().first.toString,
+      "end" -> mention.charOffsets().second.toString
     )
+
+    val entityType = mention.entityType()
+
+    // If the entity is annotated by SUTIME, save the normalized time.
+    if (entityType == "DATE" || entityType == "DURATION" || entityType == "TIME" || entityType == "SET") {
+      meta("normalized") = mention.coreMap().get(classOf[CoreAnnotations.NormalizedNamedEntityTagAnnotation])
+    }
+
+    new TripleRow(doc, "Document", doc, "MENTIONS", "Mention", uuid, meta.toMap)
   }
 
   def buildLinksTo(doc: String, mention: String, uri: String): TripleRow = {
@@ -212,7 +219,7 @@ object ExtractTriples {
 
   def buildRelation(doc: String, uuids: MMap[String, UUID], triple: RelationTriple): TripleRow = {
     val sub = uuids.getOrDefault(triple.subjectLemmaGloss(), null).toString
-    val rel = triple.relationGloss().split(":")(1).toUpperCase()
+    val rel = triple.relationGloss().replaceAll(":", "_").toUpperCase()
     val obj = uuids.getOrDefault(triple.objectLemmaGloss(), null).toString
     new TripleRow(doc, "Mention", sub, rel, "Mention", obj, Map("confidence" -> triple.confidenceGloss()))
   }

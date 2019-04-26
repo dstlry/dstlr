@@ -29,6 +29,7 @@ CREATE INDEX ON :Mention(index)
 CREATE INDEX ON :Mention(span)
 CREATE INDEX ON :Mention(id, class, span)
 CREATE INDEX ON :Relation(type)
+CREATE INDEX ON :Relation(type, confidence)
 ```
 
 ## Data Cleaning Queries
