@@ -11,31 +11,29 @@ Currently, we use Wikidata as a stand-in knowledge base and extract relations fr
 
 ## Supporting Information
 
-In this example, we see that the document correctly asserts that the University of Maryland, College Park is in College Park.
+In this example, we see that the extractor correctly asserts that the General Motors (GM) is in Detroit.
 
 ```
-MATCH (d:Document)-->(s:Mention {id: "3b5363f7-ad90-4a8e-86e3-0fa1442d9bdc"})-->(r:Relation {type: "CITY_OF_HEADQUARTERS"})-->(o:Mention {id: "e6766c8e-f1dc-420a-831b-9d6926e7a230"})
+MATCH (d:Document)-->(s:Mention {id: "6dc1b225-a635-4385-85d3-5ebe7790f5fa"})-->(r:Relation {type: "CITY_OF_HEADQUARTERS"})-->(o:Mention {id: "e583d586-f460-4488-a3f5-05b3ccaf8c70"})
 MATCH (s)-->(e:Entity)-->(f:Fact {relation: r.type})
 WHERE o.label = f.value
 RETURN d, s, r, o, e, f
-LIMIT 5
 ```
 
-[https://en.wikipedia.org/wiki/University_of_Maryland,_College_Park](https://en.wikipedia.org/wiki/University_of_Maryland,_College_Park)
+[https://en.wikipedia.org/wiki/General_Motors](https://en.wikipedia.org/wiki/General_Motors)
 
 ## Inconsistent Information
 
-In this example, we see that the document incorrectly asserts that Harvard is located in Boston (when it is actually in Cambridge).
+In this example, we see that the extractor incorrectly asserts that Isetan is located in Paris (when it is actually in Tokyo).
 
 ```
-MATCH (d:Document)-->(s:Mention {id: "52807bb9-265a-45ae-8d2b-95707e43033d"})-->(r:Relation {type: "CITY_OF_HEADQUARTERS"})-->(o:Mention {id: "590b9b76-22c6-4287-a75a-10f6201e5b77"})
+MATCH (d:Document)-->(s:Mention {id: "d1a6f6f6-864a-423d-b192-1a4ea08a42e1"})-->(r:Relation {type: "CITY_OF_HEADQUARTERS"})-->(o:Mention {id: "5d6d99b3-ce3d-4f78-800f-6dc7270eeacf"})
 MATCH (s)-->(e:Entity)-->(f:Fact {relation: r.type})
 WHERE NOT (o.label = f.value)
 RETURN d, s, r, o, e, f
-LIMIT 25
 ```
 
-[https://en.wikipedia.org/wiki/Harvard_University](https://en.wikipedia.org/wiki/Harvard_University)
+[https://en.wikipedia.org/wiki/Isetan](https://en.wikipedia.org/wiki/Isetan)
 
 ## Missing Information
 
