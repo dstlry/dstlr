@@ -11,6 +11,8 @@ Currently, we use Wikidata as a stand-in knowledge base and extract relations fr
 
 ## Supporting Information
 
+In this example, we see that the document correctly asserts that the University of Maryland, College Park is in College Park.
+
 ```
 MATCH (d:Document)-->(s:Mention {id: "3b5363f7-ad90-4a8e-86e3-0fa1442d9bdc"})-->(r:Relation {type: "CITY_OF_HEADQUARTERS"})-->(o:Mention {id: "e6766c8e-f1dc-420a-831b-9d6926e7a230"})
 MATCH (s)-->(e:Entity)-->(f:Fact {relation: r.type})
@@ -23,6 +25,8 @@ LIMIT 5
 
 ## Inconsistent Information
 
+In this example, we see that the document incorrectly asserts that Harvard is located in Boston (when it is actually in Cambridge).
+
 ```
 MATCH (d:Document)-->(s:Mention {id: "52807bb9-265a-45ae-8d2b-95707e43033d"})-->(r:Relation {type: "CITY_OF_HEADQUARTERS"})-->(o:Mention {id: "590b9b76-22c6-4287-a75a-10f6201e5b77"})
 MATCH (s)-->(e:Entity)-->(f:Fact {relation: r.type})
@@ -34,6 +38,8 @@ LIMIT 25
 [https://en.wikipedia.org/wiki/Harvard_University](https://en.wikipedia.org/wiki/Harvard_University)
 
 ## Missing Information
+
+In this example, the knowledge base has an entity for the "Internation Arctic Research Center", but doesn't have information regarding the headquarters.
 
 ```
 MATCH (d:Document)-->(s:Mention)-->(r:Relation {type: "CITY_OF_HEADQUARTERS"})-->(o:Mention)
