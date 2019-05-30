@@ -22,6 +22,8 @@ RETURN d, s, r, o, e, f
 
 [https://en.wikipedia.org/wiki/Good_Technology](https://en.wikipedia.org/wiki/Good_Technology)
 
+[http://192.168.1.111:8983/solr/core18-published_date/select?df=id&q=eb3b8f3a-ea7b-11e3-b98c-72cef4a00499](http://192.168.1.111:8983/solr/core18-published_date/select?df=id&q=eb3b8f3a-ea7b-11e3-b98c-72cef4a00499)
+
 ## Inconsistent Information
 
 In this example, we see that the extractor incorrectly asserts that Isetan is located in Paris (when it is actually in Tokyo).
@@ -34,6 +36,8 @@ RETURN d, s, r, o, e, f
 ```
 
 [https://en.wikipedia.org/wiki/Isetan](https://en.wikipedia.org/wiki/Isetan)
+
+[http://192.168.1.111:8983/solr/core18-published_date/select?df=id&q=b0256254f92670eb87abf4c340e0b11e](http://192.168.1.111:8983/solr/core18-published_date/select?df=id&q=b0256254f92670eb87abf4c340e0b11e)
 
 ## Missing Information
 
@@ -48,3 +52,5 @@ RETURN d, s, r, o, e, f
 ```
 
 [https://en.wikipedia.org/wiki/International_Arctic_Research_Center](https://en.wikipedia.org/wiki/International_Arctic_Research_Center)
+
+[http://192.168.1.111:8983/solr/core18-published_date/select?df=id&q=498e15ee12856a7927c65c17218f541b](http://192.168.1.111:8983/solr/core18-published_date/select?df=id&q=498e15ee12856a7927c65c17218f541b)
