@@ -45,7 +45,6 @@ MATCH (s)-->(e:Entity {id: "International_Arctic_Research_Center"})
 OPTIONAL MATCH (e)-->(f:Fact {relation: r.type})
 WHERE f IS NULL
 RETURN d, s, r, o, e, f
-LIMIT 25
 ```
 
 [https://en.wikipedia.org/wiki/International_Arctic_Research_Center](https://en.wikipedia.org/wiki/International_Arctic_Research_Center)
