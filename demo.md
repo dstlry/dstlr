@@ -11,16 +11,16 @@ Currently, we use Wikidata as a stand-in knowledge base and extract relations fr
 
 ## Supporting Information
 
-In this example, we see that the extractor correctly asserts that the General Motors (GM) is in Detroit.
+In this example, we see that the extractor correctly asserts that Good Technology has a headquarters in Sunnyvale..
 
 ```
-MATCH (d:Document)-->(s:Mention {id: "6dc1b225-a635-4385-85d3-5ebe7790f5fa"})-->(r:Relation {type: "CITY_OF_HEADQUARTERS"})-->(o:Mention {id: "e583d586-f460-4488-a3f5-05b3ccaf8c70"})
+MATCH (d:Document)-->(s:Mention {id: "b9428435-62cd-42f3-86a6-5631a3f5804c"})-->(r:Relation {type: "CITY_OF_HEADQUARTERS"})-->(o:Mention {id: "0d5cfa92-70e5-42ef-ac1e-d9c2341c29d1"})
 MATCH (s)-->(e:Entity)-->(f:Fact {relation: r.type})
 WHERE o.label = f.value
 RETURN d, s, r, o, e, f
 ```
 
-[https://en.wikipedia.org/wiki/General_Motors](https://en.wikipedia.org/wiki/General_Motors)
+[https://en.wikipedia.org/wiki/Good_Technology](https://en.wikipedia.org/wiki/Good_Technology)
 
 ## Inconsistent Information
 
