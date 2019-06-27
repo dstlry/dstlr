@@ -1,13 +1,14 @@
 package io.dstlr
 
 import java.text.SimpleDateFormat
+import java.util.function.Consumer
 
-import com.softwaremill.sttp._
-import org.apache.hadoop.fs.{FileSystem, Path}
-import org.apache.spark.sql.{Row, SparkSession}
-import ujson.Value
+import org.apache.jena.query
+import org.apache.jena.query.QuerySolution
+import org.apache.jena.rdfconnection.{RDFConnection, RDFConnectionFuseki}
+import org.apache.spark.sql.SparkSession
 
-import scala.collection.mutable.{ListBuffer, Map => MMap}
+import scala.collection.mutable.ListBuffer
 
 /**
   * Enrich the "LINKS_TO" relationships of our extracted triples using data from WikiData.
@@ -19,9 +20,11 @@ object EnrichTriples {
 
   def main(args: Array[String]): Unit = {
 
+    // Command line args
     val conf = new Conf(args)
     println(conf.summary)
 
+    // Initialize Spark
     val spark = SparkSession
       .builder()
       .appName("dstlr - EnrichTriples")
@@ -29,146 +32,114 @@ object EnrichTriples {
 
     import spark.implicits._
 
-    val mapping = spark.sparkContext.broadcast(
-      spark.read.option("header", "true").csv("wikidata.csv").as[KnowledgeGraphMappingRow].rdd.map(row => (row.property, row.relation)).collectAsMap()
+    // Mapping from Wikidata Property ID to CoreNLP relation name
+    val property2relation = spark.sparkContext.broadcast(
+      spark.read.option("header", "true").csv("wikidata.csv").as[KnowledgeGraphMappingRow].rdd.map(row => (row.property, row.relation)).filter(row => row._1 != null && row._2 != null).collectAsMap()
     )
 
-    // Delete old output directory
-    FileSystem.get(spark.sparkContext.hadoopConfiguration).delete(new Path(conf.output()), true)
-
+    // The distinct entities extracted from documents
     val entities = spark.read.parquet(conf.input()).as[TripleRow]
-      .repartition(conf.partitions())
       .filter($"relation" === "LINKS_TO" && $"objectValue".isNotNull)
       .select($"objectValue")
       .distinct()
 
-    val result = entities
-      .mapPartitions(part => {
+    val result = entities.mapPartitions(part => {
+      part
+        .map(row => (row.getString(0), getWikidataId(conf.jenaUri(), s"<https://en.wikipedia.org/wiki/${row.getString(0)}>")))
+        .filter(row => row._2 != null)
+        .map(row => {
 
-        // Standard HTTP backend
-        implicit val backend = HttpURLConnectionBackend()
+          val list = new ListBuffer[TripleRow]()
 
-        part.grouped(50).map(group => {
+          val (name, id) = row
+          val properties = getProperties(conf.jenaUri(), s"<${id}>")
 
-          // Holds extracted triples
-          val list = ListBuffer[TripleRow]()
-
-          try {
-
-            val id2title = mapTitles(group)
-
-            val ids = id2title.keys.mkString("|")
-
-            val resp = sttp.get(uri"https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${ids}&languages=en&format=json").send()
-            val json = ujson.read(resp.unsafeBody)
-
-            val entities = json("entities")
-
-            entities.obj
-              .filter(entity => id2title.contains(entity._1))
-              .foreach(entity => {
-
-                val (id, content) = entity
-
-                val title = id2title.get(id).get
-                val claims = content("claims")
-
-                println(s"###\n# ${id} -> ${title}\n###")
-
-                mapping.value.foreach(map => {
-                  val (property, relation) = map
-                  if (claims.obj.contains(property)) {
-                    println(s"${property} -> ${relation}")
-                    try {
-                      relation match {
-                        case "CITY_OF_HEADQUARTERS" => list.append(extractHeadquarters(title, relation, claims(property)))
-                        case _ => // DUMMY
-                      }
-                    } catch {
-                      case t: Throwable => println(s"Error processing ${id} - ${t}")
-                    }
-                  }
-                })
-              })
-
-          } catch {
-            case e: Exception => {
-              println(s"Error processing group (${group})")
-              println(e)
+          properties.foreach(property => {
+            property match {
+              case "P159" => list.append(extractCityOfHeadquarters(conf.jenaUri(), name, id, property2relation.value(property), property))
+              case _ => // DUMMY
             }
-          }
+          })
 
-          // Return triples
           list
 
         })
-      })
-      .flatMap(x => x)
+    })
 
-    result.write.parquet(conf.output())
-
-    spark.stop()
+    result.flatMap(x => x).foreach(row => println(row))
 
   }
 
-  def mapTitles(group: Seq[Row]): Map[String, String] = {
+  def getWikidataId(jenaUri: String, entity: String): String = {
 
-    // Standard HTTP backend
-    implicit val backend = HttpURLConnectionBackend()
+    var id: String = null
+    var connection: RDFConnection = null
 
-    // Wiki APIs takes "|" delimited titles
-    val titles = group.map(_.getString(0)).mkString("|")
-
-    val resp = sttp.get(uri"https://en.wikipedia.org/w/api.php?action=query&prop=pageprops&ppprop=wikibase_item&redirects=1&format=json&titles=${titles}").send()
-    val json = ujson.read(resp.unsafeBody)
-
-    val normalized = MMap[String, String]()
-    val redirects = MMap[String, String]()
-
-    // Mapping back from normalized title to original title
-    json("query")("normalized").arr.foreach(element => normalized(element("to").str) = element("from").str)
-
-    // If the re-directs are present, add to the Map.
-    if (json("query").obj.contains("redirects")) {
-      json("query")("redirects").arr.foreach(element => normalized(element("to").str) = element("from").str)
+    try {
+      connection = RDFConnectionFuseki.create().destination(jenaUri).build()
+      connection.querySelect(s"SELECT ?object WHERE { ${entity} <http://schema.org/about> ?object }", new Consumer[QuerySolution] {
+        override def accept(t: QuerySolution): Unit = {
+          id = t.getResource("object").getURI()
+        }
+      })
+    } finally {
+      if (connection != null) {
+        connection.close()
+      }
     }
 
-    json("query")("pages").obj
-      .filter(row => {
-        // Items without WikiBase entities are returned with IDs -1, -2, -3...
-        !row._1.startsWith("-")
+    id
+
+  }
+
+  def getProperties(jenaUri: String, entity: String): List[String] = {
+
+    val result = new ListBuffer[String]()
+    var connection: RDFConnection = null
+
+    try {
+      connection = RDFConnectionFuseki.create().destination(jenaUri).build()
+      connection.queryResultSet(s"SELECT DISTINCT ?predicate WHERE { ${entity} ?predicate ?object . FILTER regex(str(?predicate), 'http://www.wikidata.org/prop/direct/P[0-9]+')}", new Consumer[query.ResultSet] {
+        override def accept(t: query.ResultSet): Unit = {
+          while (t.hasNext()) {
+            val uri = t.next().getResource("predicate").getURI()
+            result.append(uri.substring(uri.lastIndexOf("/") + 1, uri.length))
+          }
+        }
       })
-      .filter(_._2.obj.contains("pageprops"))
-      .filter(_._2.obj("pageprops").obj.contains("wikibase_item"))
-      .map(row => {
-        val mappedTitle = row._2("title").str
-        val redirectedTitle = redirects.getOrElse(mappedTitle, mappedTitle)
-        val originalTitle = normalized.getOrElse(redirectedTitle, redirectedTitle)
-        val wikiBaseId = row._2("pageprops")("wikibase_item").str
-        (wikiBaseId, originalTitle)
+    } finally {
+      if (connection != null) {
+        connection.close()
+      }
+    }
+
+    result.toList
+
+  }
+
+  def getProperty(jenaUri: String, entity: String, propertyId: String, extractor: QuerySolution => String): String = {
+
+    var result: String = null
+    var connection: RDFConnection = null
+
+    try {
+      connection = RDFConnectionFuseki.create().destination(jenaUri).build()
+      connection.querySelect(s"SELECT * WHERE { <${entity}> <http://www.wikidata.org/prop/direct/${propertyId}> ?object . ?object <http://schema.org/name> ?name .}", new Consumer[QuerySolution] {
+        override def accept(qs: QuerySolution): Unit = (result = extractor(qs))
       })
-      .toMap
+    } finally {
+      if (connection != null) {
+        connection.close()
+      }
+    }
+
+    result
+
   }
 
-  def extractBirthDate(uri: String, relation: String, json: Value): TripleRow = {
-    val date = dateFormat.parse(json(0)("mainsnak")("datavalue")("value")("time").str)
-    new TripleRow("wiki", "Entity", uri, relation, "Fact", printFormat.format(date), null)
+  def extractCityOfHeadquarters(jenaUri: String, name: String, id: String, relation: String, property: String): TripleRow = {
+    val fact = getProperty(jenaUri, id, property, x => x.getLiteral("name").getString)
+    new TripleRow("wiki", "Entity", name, relation, "Fact", fact, null)
   }
 
-  def extractDeathDate(uri: String, relation: String, json: Value): TripleRow = {
-    val date = dateFormat.parse(json(0)("mainsnak")("datavalue")("value")("time").str)
-    new TripleRow("wiki", "Entity", uri, relation, "Fact", printFormat.format(date), null)
-  }
-
-  def extractHeadquarters(uri: String, relation: String, json: Value): TripleRow = {
-    val wid = json(0)("mainsnak")("datavalue")("value")("id").str
-    new TripleRow("wiki", "Entity", uri, relation, "Fact", id2label(wid), null)
-  }
-
-  def id2label(id: String): String = {
-    implicit val backend = HttpURLConnectionBackend()
-    val resp = sttp.get(uri"https://www.wikidata.org/w/api.php?action=wbgetentities&props=labels&ids=${id}&languages=en&format=json").send()
-    val json = ujson.read(resp.unsafeBody)
-    json("entities")(id)("labels")("en")("value").str
-  }
 }

@@ -35,6 +35,9 @@ package object dstlr {
     val neoPassword = opt[String](name = "neo4j.password", default = Some("neo4j"))
     val neoBatchSize = opt[Int](name = "neo4j.batch.size", default = Some(10000))
 
+    // Jena
+    val jenaUri = opt[String](name = "jena.uri", default = Some("http://tuna.cs.uwaterloo.ca:9090/wikidata/query"))
+
     verify()
 
   }
