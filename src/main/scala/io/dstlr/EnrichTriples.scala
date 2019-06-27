@@ -3,6 +3,7 @@ package io.dstlr
 import java.text.SimpleDateFormat
 import java.util.function.Consumer
 
+import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.jena.query
 import org.apache.jena.query.QuerySolution
 import org.apache.jena.rdfconnection.{RDFConnection, RDFConnectionFuseki}
@@ -32,6 +33,9 @@ object EnrichTriples {
 
     import spark.implicits._
 
+    // Delete old output directory
+    FileSystem.get(spark.sparkContext.hadoopConfiguration).delete(new Path(conf.output()), true)
+
     // Mapping from Wikidata Property ID to CoreNLP relation name
     val property2relation = spark.sparkContext.broadcast(
       spark.read.option("header", "true").csv("wikidata.csv").as[KnowledgeGraphMappingRow].rdd.map(row => (row.property, row.relation)).filter(row => row._1 != null && row._2 != null).collectAsMap()
@@ -43,30 +47,29 @@ object EnrichTriples {
       .select($"objectValue")
       .distinct()
 
-    val result = entities.mapPartitions(part => {
-      part
-        .map(row => (row.getString(0), getWikidataId(conf.jenaUri(), s"<https://en.wikipedia.org/wiki/${row.getString(0)}>")))
-        .filter(row => row._2 != null)
-        .map(row => {
+    val result = entities
+      .map(row => (row.getString(0), getWikidataId(conf.jenaUri(), s"<https://en.wikipedia.org/wiki/${row.getString(0)}>")))
+      .filter(row => row._2 != null)
+      .map(row => {
 
-          val list = new ListBuffer[TripleRow]()
+        val list = new ListBuffer[TripleRow]()
 
-          val (name, id) = row
-          val properties = getProperties(conf.jenaUri(), s"<${id}>")
+        val (name, id) = row
+        val properties = getProperties(conf.jenaUri(), s"<${id}>")
 
-          properties.foreach(property => {
-            property match {
-              case "P159" => list.append(extractCityOfHeadquarters(conf.jenaUri(), name, id, property2relation.value(property), property))
-              case _ => // DUMMY
-            }
-          })
-
-          list
-
+        properties.foreach(property => {
+          property match {
+            case "P159" => list.append(extractCityOfHeadquarters(conf.jenaUri(), name, id, property2relation.value(property), property))
+            case _ => // DUMMY
+          }
         })
-    })
 
-    result.flatMap(x => x).foreach(row => println(row))
+        list
+
+      })
+      .flatMap(x => x)
+
+    result.write.parquet(conf.output())
 
   }
 
