@@ -48,7 +48,7 @@ object EnrichTriples {
       .distinct()
 
     val result = entities
-      .map(row => (row.getString(0), getWikidataId(conf.jenaUri(), s"<https://en.wikipedia.org/wiki/${row.getString(0)}>")))
+      .map(row => (row.getString(0), getWikidataId(conf.jenaUri(), row.getString(0))))
       .filter(row => row._2 != null)
       .map(row => {
 
@@ -78,9 +78,15 @@ object EnrichTriples {
     var id: String = null
     var connection: RDFConnection = null
 
+    val encodedEntity = s"<https://en.wikipedia.org/wiki/${encodeEntity(entity)}>"
+
+    if (entity == null) {
+      println("null")
+    }
+
     try {
       connection = RDFConnectionFuseki.create().destination(jenaUri).build()
-      connection.querySelect(s"SELECT ?object WHERE { ${entity} <http://schema.org/about> ?object }", new Consumer[QuerySolution] {
+      connection.querySelect(s"SELECT ?object WHERE { ${encodedEntity} <http://schema.org/about> ?object }", new Consumer[QuerySolution] {
         override def accept(t: QuerySolution): Unit = {
           id = t.getResource("object").getURI()
         }
@@ -138,6 +144,12 @@ object EnrichTriples {
 
     result
 
+  }
+
+  def encodeEntity(entity: String): String = {
+    entity
+      .replaceAll("\"", "%22")
+      .replaceAll("`", "%60")
   }
 
   def extractCityOfHeadquarters(jenaUri: String, name: String, id: String, relation: String, property: String): TripleRow = {
