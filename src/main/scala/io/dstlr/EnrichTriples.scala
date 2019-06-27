@@ -80,10 +80,6 @@ object EnrichTriples {
 
     val encodedEntity = s"<https://en.wikipedia.org/wiki/${encodeEntity(entity)}>"
 
-    if (entity == null) {
-      println("null")
-    }
-
     try {
       connection = RDFConnectionFuseki.create().destination(jenaUri).build()
       connection.querySelect(s"SELECT ?object WHERE { ${encodedEntity} <http://schema.org/about> ?object }", new Consumer[QuerySolution] {
