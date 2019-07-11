@@ -16,8 +16,8 @@ import scala.collection.mutable.ListBuffer
   */
 object EnrichTriples {
 
-  val dateFormat = new SimpleDateFormat("'+'yyyy-MM-dd'T'HH:mm:ss'Z'")
-  val printFormat = new SimpleDateFormat("yyyy-MM-dd")
+  val dateFormat = new SimpleDateFormat("yyyy-MM-dd")
+  val jenaFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'")
 
   def main(args: Array[String]): Unit = {
 
@@ -46,6 +46,7 @@ object EnrichTriples {
       .filter($"relation" === "LINKS_TO" && $"objectValue".isNotNull)
       .select($"objectValue")
       .distinct()
+      .repartition(conf.partitions())
 
     val result = entities
       .map(row => (row.getString(0), getWikidataId(conf.jenaUri(), row.getString(0))))
@@ -58,9 +59,15 @@ object EnrichTriples {
         val properties = getProperties(conf.jenaUri(), s"<${id}>")
 
         properties.foreach(property => {
-          property match {
-            case "P159" => list.append(extractCityOfHeadquarters(conf.jenaUri(), name, id, property2relation.value(property), property))
-            case _ => // DUMMY
+          try {
+            property match {
+              case "P159" => list.append(extractCityOfHeadquarters(conf.jenaUri(), name, id, property2relation.value(property), property))
+              case "P569" => list.append(extractDateOfBirth(conf.jenaUri(), name, id, property2relation.value(property), property))
+              case "P570" => list.append(extractDateOfDeath(conf.jenaUri(), name, id, property2relation.value(property), property))
+              case _ => // DUMMY
+            }
+          } catch {
+            case e: Exception => println(s"Error processing ${property} for ${name} (${id}): ${e}")
           }
         })
 
@@ -122,14 +129,14 @@ object EnrichTriples {
 
   }
 
-  def getProperty(jenaUri: String, entity: String, propertyId: String, extractor: QuerySolution => String): String = {
+  def getProperty(jenaUri: String, entity: String, propertyId: String, extractor: QuerySolution => Any): Any = {
 
-    var result: String = null
+    var result: Any = null
     var connection: RDFConnection = null
 
     try {
       connection = RDFConnectionFuseki.create().destination(jenaUri).build()
-      connection.querySelect(s"SELECT * WHERE { <${entity}> <http://www.wikidata.org/prop/direct/${propertyId}> ?object . ?object <http://schema.org/name> ?name .}", new Consumer[QuerySolution] {
+      connection.querySelect(s"SELECT * WHERE { <${entity}> <http://www.wikidata.org/prop/direct/${propertyId}> ?object . OPTIONAL { ?object <http://schema.org/name> ?name . }}", new Consumer[QuerySolution] {
         override def accept(qs: QuerySolution): Unit = (result = extractor(qs))
       })
     } finally {
@@ -149,8 +156,17 @@ object EnrichTriples {
   }
 
   def extractCityOfHeadquarters(jenaUri: String, name: String, id: String, relation: String, property: String): TripleRow = {
-    val fact = getProperty(jenaUri, id, property, x => x.getLiteral("name").getString)
+    val fact = getProperty(jenaUri, id, property, x => if (x.contains("name")) x.getLiteral("name").getString else null).asInstanceOf[String]
     new TripleRow("wiki", "Entity", name, relation, "Fact", fact, null)
   }
 
+  def extractDateOfBirth(jenaUri: String, name: String, id: String, relation: String, property: String): TripleRow = {
+    val dateStr = getProperty(jenaUri, id, property, x => if (x.contains("object")) x.getLiteral("object").getString else null).asInstanceOf[String]
+    new TripleRow("wiki", "Entity", name, relation, "Fact", dateFormat.format(jenaFormat.parse(dateStr)), null)
+  }
+
+  def extractDateOfDeath(jenaUri: String, name: String, id: String, relation: String, property: String): TripleRow = {
+    val dateStr = getProperty(jenaUri, id, property, x => if (x.contains("object")) x.getLiteral("object").getString else null).asInstanceOf[String]
+    new TripleRow("wiki", "Entity", name, relation, "Fact", dateFormat.format(jenaFormat.parse(dateStr)), null)
+  }
 }
