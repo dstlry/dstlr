@@ -7,6 +7,12 @@ scalaVersion := "2.11.12"
 resolvers += "Restlet Repository" at "http://maven.restlet.org"
 resolvers += "Spark Packages Repo" at "http://dl.bintray.com/spark-packages/maven"
 
+// https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-databind
+libraryDependencies += "com.fasterxml.jackson.core" % "jackson-databind" % "2.9.9"
+
+// https://mvnrepository.com/artifact/com.fasterxml.jackson.module/jackson-module-scala
+libraryDependencies += "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.9.9"
+
 // https://mvnrepository.com/artifact/com.lihaoyi/ujson
 libraryDependencies += "com.lihaoyi" %% "ujson" % "0.7.1"
 
@@ -21,6 +27,9 @@ libraryDependencies += "edu.stanford.nlp" % "stanford-corenlp" % "3.9.2"
 libraryDependencies += "edu.stanford.nlp" % "stanford-corenlp" % "3.9.2" classifier "models-english" classifier "models-english-kbp"
 
 libraryDependencies += "neo4j-contrib" % "neo4j-spark-connector" % "2.1.0-M4"
+
+// https://mvnrepository.com/artifact/org.apache.jena/jena-rdfconnection
+libraryDependencies += "org.apache.jena" % "jena-rdfconnection" % "3.12.0"
 
 // https://mvnrepository.com/artifact/org.apache.solr/solr-solrj
 libraryDependencies += "org.apache.solr" % "solr-solrj" % "8.0.0"
@@ -39,9 +48,6 @@ libraryDependencies += "org.rogach" %% "scallop" % "3.1.5"
 
 // https://mvnrepository.com/artifact/org.slf4j/slf4j-simple
 libraryDependencies += "org.slf4j" % "slf4j-simple" % "1.7.25"
-
-// https://mvnrepository.com/artifact/org.wikidata.wdtk/wdtk-wikibaseapi
-libraryDependencies += "org.wikidata.wdtk" % "wdtk-wikibaseapi" % "0.9.0"
 
 assemblyMergeStrategy in assembly := {
   case PathList("META-INF", xs @ _*) => MergeStrategy.discard

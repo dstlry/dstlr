@@ -8,7 +8,6 @@ import edu.stanford.nlp.pipeline.{CoreDocument, CoreEntityMention, StanfordCoreN
 import edu.stanford.nlp.simple.Document
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql.{Dataset, SparkSession}
-import org.jsoup.Jsoup
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable.{ListBuffer, Map => MMap}
@@ -160,7 +159,7 @@ object ExtractTriples {
     //      .as[DocumentRow]
 
     // Test data
-    spark.sparkContext.parallelize(Seq("Barack Obama was born on August 4th, 1961.", "Apple is based in Cupertino."))
+    spark.sparkContext.parallelize(Seq("Barack Obama was born on August 4th, 1961.", "Apple is based in Cupertino.", "Good Technology is a company based in Sunnyvale.", "Isetan is a company based in Paris.", "The International Arctic Research Center is located in Fairbanks, Alaska."))
       .zipWithIndex()
       .map(_.swap)
       .toDF("id", "contents")
