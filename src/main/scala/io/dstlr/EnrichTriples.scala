@@ -43,10 +43,10 @@ object EnrichTriples {
 
     // The distinct entities extracted from documents
     val entities = spark.read.parquet(conf.input()).as[TripleRow]
+      .repartition(conf.partitions())
       .filter($"relation" === "LINKS_TO" && $"objectValue".isNotNull)
       .select($"objectValue")
       .distinct()
-      .repartition(conf.partitions())
 
     val result = entities
       .map(row => (row.getString(0), getWikidataId(conf.jenaUri(), row.getString(0))))
