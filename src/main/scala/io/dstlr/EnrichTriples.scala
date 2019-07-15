@@ -36,9 +36,13 @@ object EnrichTriples {
     // Delete old output directory
     FileSystem.get(spark.sparkContext.hadoopConfiguration).delete(new Path(conf.output()), true)
 
-    // Mapping from Wikidata Property ID to CoreNLP relation name
-    val property2relation = spark.sparkContext.broadcast(
-      spark.read.option("header", "true").csv("wikidata.csv").as[KnowledgeGraphMappingRow].rdd.map(row => (row.property, row.relation)).filter(row => row._1 != null && row._2 != null).collectAsMap()
+    // Mapping from Wikidata Property ID to CoreNLP relation names
+    val property2relations = spark.sparkContext.broadcast(
+      spark.read.option("header", "true").csv("wikidata.csv").as[KnowledgeGraphMappingRow].rdd
+        .filter(row => row.property != null && row.relation != null)
+        .groupBy(_.property)
+        .mapValues(_.map(_.relation).toList)
+        .collectAsMap()
     )
 
     // The distinct entities extracted from documents
@@ -61,10 +65,10 @@ object EnrichTriples {
         properties.foreach(property => {
           try {
             property match {
-              case "P159" => list.append(extractCityOfHeadquarters(conf.jenaUri(), name, id, property2relation.value(property), property))
-              case "P569" => list.append(extractDateOfBirth(conf.jenaUri(), name, id, property2relation.value(property), property))
-              case "P570" => list.append(extractDateOfDeath(conf.jenaUri(), name, id, property2relation.value(property), property))
-              case _ => // DUMMY
+              case "P159" => property2relations.value(property).foreach(relation => list.append(extractCityOfHeadquarters(conf.jenaUri(), name, id, relation, property)))
+              case "P569" => property2relations.value(property).foreach(relation => list.append(extractDateOfBirth(conf.jenaUri(), name, id, relation, property)))
+              case "P570" => property2relations.value(property).foreach(relation => list.append(extractDateOfDeath(conf.jenaUri(), name, id, relation, property)))
+              case _ => // DUMMY`
             }
           } catch {
             case e: Exception => println(s"Error processing ${property} for ${name} (${id}): ${e}")
