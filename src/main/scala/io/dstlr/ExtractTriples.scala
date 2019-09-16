@@ -13,8 +13,8 @@ import scala.collection.JavaConversions._
 import scala.collection.mutable.{ListBuffer, Map => MMap}
 
 /**
-  * Extract raw triples from documents on Solr using CoreNLP.
-  */
+ * Extract raw triples from documents on Solr using CoreNLP.
+ */
 object ExtractTriples {
 
   // Used for the full NER, KBP, and entity linking
@@ -58,6 +58,8 @@ object ExtractTriples {
     } else {
       text(spark, conf)
     }
+
+    print(s"Processing ${ds.count()} documents")
 
     val result = ds
       .repartition(conf.partitions())
@@ -171,12 +173,20 @@ object ExtractTriples {
 
     import spark.implicits._
 
-    val options = Map(
+    val options = collection.mutable.Map(
       "collection" -> conf.solrIndex(),
       "query" -> conf.query(),
       "rows" -> conf.rows(),
       "zkhost" -> conf.solrUri()
     )
+
+    // Are we sampling?
+    if (conf.solrSamplePercent.isDefined) {
+      options("sample_pct") = conf.solrSamplePercent()
+      if (conf.solrSampleSeed.isDefined) {
+        options("sample_seed") = conf.solrSampleSeed()
+      }
+    }
 
     // Create a DataFrame with the query results
     spark.read.format("solr")

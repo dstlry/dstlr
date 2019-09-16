@@ -28,6 +28,8 @@ package object dstlr {
     val rows = opt[String](default = Some("10000"))
     val partitions = opt[Int](default = Some(8))
     val sentLengthThreshold = opt[Int](default = Some(128))
+    val solrSampleSeed = opt[String](default = None)
+    val solrSamplePercent = opt[String](default = None)
 
     // Neo4j
     val neoUri = opt[String](name = "neo4j.uri", default = Some("bolt://localhost:7687"))
