@@ -6,14 +6,14 @@ import java.util.function.Consumer
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.jena.query
 import org.apache.jena.query.QuerySolution
-import org.apache.jena.rdfconnection.{RDFConnection, RDFConnectionFuseki}
+import org.apache.jena.rdfconnection.{RDFConnection, RDFConnectionFactory}
 import org.apache.spark.sql.SparkSession
 
 import scala.collection.mutable.ListBuffer
 
 /**
-  * Enrich the "LINKS_TO" relationships of our extracted triples using data from WikiData.
-  */
+ * Enrich the "LINKS_TO" relationships of our extracted triples using data from WikiData.
+ */
 object EnrichTriples {
 
   def main(args: Array[String]): Unit = {
@@ -50,26 +50,21 @@ object EnrichTriples {
       .distinct()
 
     val result = entities
-      .map(row => (row.getString(0), getWikidataId(conf.jenaUri(), row.getString(0))))
+      .map(row => (row.getString(0), getWikidataId(conf.sparqlEndpoint(), row.getString(0))))
       .filter(row => row._2 != null)
       .mapPartitions(part => {
 
         val dateFormat = new SimpleDateFormat("yyyy-MM-dd")
-        val jenaFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'")
+        val sparqlFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'")
 
-        def extractCityOfHeadquarters(jenaUri: String, name: String, id: String, relation: String, property: String): TripleRow = {
-          val fact = getProperty(jenaUri, id, property, x => if (x.contains("name")) x.getLiteral("name").getString else null).asInstanceOf[String]
-          new TripleRow("wiki", "Entity", name, relation, "Fact", fact, null)
+        def extractCityOfHeadquarters(sparqlEndpoint: String, name: String, id: String, relation: String, property: String): TripleRow = {
+          val fact = getProperty(sparqlEndpoint, id, property, x => if (x.contains("name")) x.getLiteral("name").getString else null).asInstanceOf[String]
+          new TripleRow("ground-truth", "Entity", name, relation, "Fact", fact, null)
         }
 
-        def extractDateOfBirth(jenaUri: String, name: String, id: String, relation: String, property: String): TripleRow = {
-          val dateStr = getProperty(jenaUri, id, property, x => if (x.contains("object")) x.getLiteral("object").getString else null).asInstanceOf[String]
-          new TripleRow("wiki", "Entity", name, relation, "Fact", dateFormat.format(jenaFormat.parse(dateStr)), null)
-        }
-
-        def extractDateOfDeath(jenaUri: String, name: String, id: String, relation: String, property: String): TripleRow = {
-          val dateStr = getProperty(jenaUri, id, property, x => if (x.contains("object")) x.getLiteral("object").getString else null).asInstanceOf[String]
-          new TripleRow("wiki", "Entity", name, relation, "Fact", dateFormat.format(jenaFormat.parse(dateStr)), null)
+        def extractDate(sparqlEndpoint: String, name: String, id: String, relation: String, property: String): TripleRow = {
+          val dateStr = getProperty(sparqlEndpoint, id, property, x => if (x.contains("object")) x.getLiteral("object").getString else null).asInstanceOf[String]
+          new TripleRow("ground-truth", "Entity", name, relation, "Fact", dateFormat.format(sparqlFormat.parse(dateStr)), null)
         }
 
         part.map(row => {
@@ -77,14 +72,13 @@ object EnrichTriples {
           val list = new ListBuffer[TripleRow]()
 
           val (name, id) = row
-          val properties = getProperties(conf.jenaUri(), s"<${id}>")
+          val properties = getProperties(conf.sparqlEndpoint(), s"<${id}>")
 
           properties.foreach(property => {
             try {
               property match {
-                case "P159" => property2relations.value(property).foreach(relation => list.append(extractCityOfHeadquarters(conf.jenaUri(), name, id, relation, property)))
-                case "P569" => property2relations.value(property).foreach(relation => list.append(extractDateOfBirth(conf.jenaUri(), name, id, relation, property)))
-                case "P570" => property2relations.value(property).foreach(relation => list.append(extractDateOfDeath(conf.jenaUri(), name, id, relation, property)))
+                case "P159" => property2relations.value(property).foreach(relation => list.append(extractCityOfHeadquarters(conf.sparqlEndpoint(), name, id, relation, property)))
+                case "P569" | "P570" => property2relations.value(property).foreach(relation => list.append(extractDate(conf.sparqlEndpoint(), name, id, relation, property)))
                 case _ => // DUMMY
               }
             } catch {
@@ -102,7 +96,7 @@ object EnrichTriples {
 
   }
 
-  def getWikidataId(jenaUri: String, entity: String): String = {
+  def getWikidataId(sparqlEndpoint: String, entity: String): String = {
 
     var id: String = null
     var connection: RDFConnection = null
@@ -110,7 +104,7 @@ object EnrichTriples {
     val encodedEntity = s"<https://en.wikipedia.org/wiki/${entity.replaceAll("\"", "%22").replaceAll("`", "%60")}>"
 
     try {
-      connection = RDFConnectionFuseki.create().destination(jenaUri).build()
+      connection = RDFConnectionFactory.connect(sparqlEndpoint)
       connection.querySelect(s"SELECT ?object WHERE { ${encodedEntity} <http://schema.org/about> ?object }", new Consumer[QuerySolution] {
         override def accept(t: QuerySolution): Unit = {
           id = t.getResource("object").getURI()
@@ -126,13 +120,13 @@ object EnrichTriples {
 
   }
 
-  def getProperties(jenaUri: String, entity: String): List[String] = {
+  def getProperties(sparqlEndpoint: String, entity: String): List[String] = {
 
     val result = new ListBuffer[String]()
     var connection: RDFConnection = null
 
     try {
-      connection = RDFConnectionFuseki.create().destination(jenaUri).build()
+      connection = RDFConnectionFactory.connect(sparqlEndpoint)
       connection.queryResultSet(s"SELECT DISTINCT ?predicate WHERE { ${entity} ?predicate ?object . FILTER regex(str(?predicate), 'http://www.wikidata.org/prop/direct/P[0-9]+')}", new Consumer[query.ResultSet] {
         override def accept(t: query.ResultSet): Unit = {
           while (t.hasNext()) {
@@ -151,14 +145,14 @@ object EnrichTriples {
 
   }
 
-  def getProperty(jenaUri: String, entity: String, propertyId: String, extractor: QuerySolution => Any): Any = {
+  def getProperty(sparqlEndpoint: String, entity: String, propertyId: String, extractor: QuerySolution => Any): Any = {
 
     var result: Any = null
     var connection: RDFConnection = null
 
     try {
-      connection = RDFConnectionFuseki.create().destination(jenaUri).build()
-      connection.querySelect(s"SELECT * WHERE { <${entity}> <http://www.wikidata.org/prop/direct/${propertyId}> ?object . OPTIONAL { ?object <http://schema.org/name> ?name . }}", new Consumer[QuerySolution] {
+      connection = RDFConnectionFactory.connect(sparqlEndpoint)
+      connection.querySelect(s"SELECT * WHERE { <${entity}> <http://www.wikidata.org/prop/direct/${propertyId}> ?object . OPTIONAL { ?object<http://www.w3.org/2000/01/rdf-schema#label> ?name . FILTER (lang(?name) = 'en') . }}", new Consumer[QuerySolution] {
         override def accept(qs: QuerySolution): Unit = (result = extractor(qs))
       })
     } finally {

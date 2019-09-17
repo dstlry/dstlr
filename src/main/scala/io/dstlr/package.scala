@@ -36,7 +36,8 @@ package object dstlr {
     val neoBatchSize = opt[Int](name = "neo4j.batch.size", default = Some(10000))
 
     // Jena
-    val jenaUri = opt[String](name = "jena.uri", default = Some("http://tuna.cs.uwaterloo.ca:9090/wikidata/query"))
+    val sparqlEndpoint = opt[String](name = "sparql.endpoint", default = Some("https://query.wikidata.org/sparql")) // Wikidata's Query Service
+//    val sparqlEndpoint = opt[String](name = "sparql.endpoint", default = Some("http://tuna.cs.uwaterloo.ca:9090/wikidata/query")) // Jena on tuna
 
     verify()
 
