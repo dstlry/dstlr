@@ -45,6 +45,14 @@ CREATE INDEX ON :Relation(type)
 CREATE INDEX ON :Relation(type, confidence)
 ```
 
+## Running
+
+* Run `ExtractTriples` via the `bin/extract.sh` script.
+* Run `EnrichTriples` via the `bin/enrich.sh` script.
+* Run `LoadTriples` on each of the output folders produced from the above commands (`triples` and `triples-enriched`) via the `bin/load.sh` script.
+
+Note that each script will need to be modified based on your environment (e.g., available memory, number of executors, Solr, etc.) - options available [here](src/main/scala/io/dstlr/package.scala).
+
 ## Data Cleaning Queries
 
 Find CITY_OF_HEADQUARTERS relation between two mentions:
