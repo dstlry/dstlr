@@ -13,6 +13,8 @@ Currently, we use Wikidata as a stand-in knowledge base as the source of ground-
 
 [sbt](https://www.scala-sbt.org/) is the build tool used for Scala projects, download it and run `sbt assembly` to build the JAR.
 
+There is a [known issue](https://github.com/stanfordnlp/CoreNLP/issues/556) between recent Spark versions and CoreNLP 3.8. To fix this, delete the `protobuf-java-2.5.0.jar` file in `$SPARK_HOME/jars` and replace it with [version 3.0.0](https://repo1.maven.org/maven2/com/google/protobuf/protobuf-java/3.0.0/protobuf-java-3.0.0.jar).
+
 ## anserini
 
 Download and build [Anserini](http://anserini.io) and then follow the [Solrini](https://github.com/castorini/anserini/blob/master/docs/solrini.md) instructions to get a Solr instance running for indexing text documents. Index a document collection with Anserini, such as the Washington Post collection, and ensure the appropriate Solr [command-line parameters](https://github.com/dstlry/dstlr/blob/master/src/main/scala/io/dstlr/package.scala) for `dstlr` are adjusted if use non-default options.
