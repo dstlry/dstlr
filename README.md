@@ -11,6 +11,8 @@ Currently, we use Wikidata as a stand-in knowledge base as the source of ground-
 
 # Setup
 
+[sbt](https://www.scala-sbt.org/) is the build tool used for Scala projects, download it and run `sbt assembly` to build the JAR.
+
 ## anserini
 
 Download and build [Anserini](http://anserini.io) and then follow the [Solrini](https://github.com/castorini/anserini/blob/master/docs/solrini.md) instructions to get a Solr instance running for indexing text documents. Index a document collection with Anserini, such as the Washington Post collection, and ensure the appropriate Solr [command-line parameters](https://github.com/dstlry/dstlr/blob/master/src/main/scala/io/dstlr/package.scala) for `dstlr` are adjusted if use non-default options.
