@@ -4,10 +4,10 @@
 See [`dstlr.ai`](http://dstlr.ai/) for an overview of the platform.
 
 The current `dstlr` demo "distills" the [TREC Washington Post Corpus](https://trec.nist.gov/data/wapost/) containing around 600K documents into a raw knowledge graph comprised of approximately 97M triples, enriched with facts from Wikidata for the 324K distinct entities discovered in the corpus.
-On top of thos knowledge graph, we have implemented a subgraph-matching approach to align extracted relations with facts from Wikidata using the declarative Cypher query language.
+On top of this knowledge graph, we have implemented a subgraph-matching approach to align extracted relations with facts from Wikidata using the declarative Cypher query language.
 This simple demo shows that fact verification, locating textual support for asserted facts, detecting inconsistent and missing facts, and extracting distantly-supervised training data can all be performed within the same framework.
  
-This readme provies instructions on how to replicate our work.
+This README provies instructions on how to replicate our work.
 
 # Setup
 
@@ -49,7 +49,7 @@ CREATE INDEX ON :Relation(type, confidence)
 
 Find CITY_OF_HEADQUARTERS relation between two mentions:
 ```
-MATCH (d:Document)-->(s:Mention)-->(r:Relation {type: "CITY_OF_HEADQUARTERS"})-->(o:Mention)
+MATCH (d:Document)-->(s:Mention)-->(r:Relation {type: "ORG_CITY_OF_HEADQUARTERS"})-->(o:Mention)
 MATCH (s)-->(e:Entity)-->(f:Fact {relation: r.type})
 RETURN d, s, r, o, e, f
 LIMIT 25
@@ -57,7 +57,7 @@ LIMIT 25
 
 Find CITY_OF_HEADQUARTERS relation between two mentions where the subject node doesn't have a linked entity:
 ```
-MATCH (d:Document)-->(s:Mention)-->(r:Relation {type: "CITY_OF_HEADQUARTERS"})-->(o:Mention)
+MATCH (d:Document)-->(s:Mention)-->(r:Relation {type: "ORG_CITY_OF_HEADQUARTERS"})-->(o:Mention)
 OPTIONAL MATCH (s)-->(e:Entity)
 WHERE e IS NULL
 RETURN d, s, r, o, e
@@ -67,7 +67,7 @@ LIMIT 25
 ### Missing Information
 Find CITY_OF_HEADQUARTERS relation between two mentions where the linked entity doesn't have the relation we're looking for:
 ```
-MATCH (d:Document)-->(s:Mention)-->(r:Relation {type: "CITY_OF_HEADQUARTERS"})-->(o:Mention)
+MATCH (d:Document)-->(s:Mention)-->(r:Relation {type: "ORG_CITY_OF_HEADQUARTERS"})-->(o:Mention)
 MATCH (s)-->(e:Entity)
 OPTIONAL MATCH (e)-->(f:Fact {relation: r.type})
 WHERE f IS NULL
