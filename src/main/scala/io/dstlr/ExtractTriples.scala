@@ -6,15 +6,16 @@ import edu.stanford.nlp.ie.util.RelationTriple
 import edu.stanford.nlp.ling.CoreAnnotations
 import edu.stanford.nlp.pipeline.{CoreDocument, CoreEntityMention, StanfordCoreNLP}
 import edu.stanford.nlp.simple.Document
+import io.dstlr.source.{ExampleDataSource, SolrDataSource}
 import org.apache.hadoop.fs.{FileSystem, Path}
-import org.apache.spark.sql.{Dataset, SparkSession}
+import org.apache.spark.sql.SparkSession
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable.{ListBuffer, Map => MMap}
 
 /**
-  * Extract raw triples from documents on Solr using CoreNLP.
-  */
+ * Extract raw triples from documents on Solr using CoreNLP.
+ */
 object ExtractTriples {
 
   // Used for the full NER, KBP, and entity linking
@@ -53,13 +54,13 @@ object ExtractTriples {
     // Start time
     val start = System.currentTimeMillis()
 
-    val ds = if (conf.solr()) {
-      solr(spark, conf)
+    val dataSource = if (conf.solr()) {
+      new SolrDataSource(spark, conf)
     } else {
-      text(spark, conf)
+      new ExampleDataSource(spark, conf)
     }
 
-    val result = ds
+    val result = dataSource.get()
       .repartition(conf.partitions())
       .filter(doc => doc.id != null && doc.id.nonEmpty)
       .filter(doc => doc.contents != null && doc.contents.nonEmpty)
@@ -143,49 +144,6 @@ object ExtractTriples {
 
   }
 
-  def text(spark: SparkSession, conf: Conf): Dataset[DocumentRow] = {
-
-    import spark.implicits._
-
-    // Parse JSON -> map to (id, list of content) -> filter out non-paragraphs -> map to HTML-less strings -> concat paragraphs into document
-    //    spark.sparkContext.textFile(conf.input())
-    //      .map(ujson.read(_))
-    //      .map(json => (json("id").str, json("contents").arr.filter(_ != ujson.Null)))
-    //      .map(json => (json._1, json._2.filter(x => x.obj.getOrDefault("type", "").str == "sanitized_html")))
-    //      .map(json => (json._1, json._2.filter(x => x.obj.getOrDefault("subtype", "").str == "paragraph")))
-    //      .map(json => (json._1, json._2.map(x => Jsoup.parse(x.obj.getOrDefault("content", "").str).text())))
-    //      .map(json => (json._1, json._2.mkString(" ")))
-    //      .toDF("id", "contents")
-    //      .as[DocumentRow]
-
-    // Test data
-    spark.sparkContext.parallelize(Seq("Barack Obama was born on August 4th, 1961.", "Apple is based in Cupertino.", "Good Technology is a company based in Sunnyvale.", "Isetan is a company based in Paris.", "The International Arctic Research Center is located in Fairbanks, Alaska."))
-      .zipWithIndex()
-      .map(_.swap)
-      .toDF("id", "contents")
-      .as[DocumentRow]
-
-  }
-
-  def solr(spark: SparkSession, conf: Conf): Dataset[DocumentRow] = {
-
-    import spark.implicits._
-
-    val options = Map(
-      "collection" -> conf.solrIndex(),
-      "query" -> conf.query(),
-      "rows" -> conf.rows(),
-      "zkhost" -> conf.solrUri()
-    )
-
-    // Create a DataFrame with the query results
-    spark.read.format("solr")
-      .options(options)
-      .load()
-      .as[DocumentRow]
-
-  }
-
   def toLemmaString(mention: CoreEntityMention): String = {
     mention.tokens()
       .filter(x => !x.tag.matches("[.?,:;'\"!]"))
@@ -209,17 +167,17 @@ object ExtractTriples {
       meta("normalized") = mention.coreMap().get(classOf[CoreAnnotations.NormalizedNamedEntityTagAnnotation])
     }
 
-    new TripleRow(doc, "Document", doc, "MENTIONS", "Mention", uuid, meta.toMap)
+    TripleRow(doc, "Document", doc, "MENTIONS", "Mention", uuid, meta.toMap)
   }
 
   def buildLinksTo(doc: String, mention: String, uri: String): TripleRow = {
-    new TripleRow(doc, "Mention", mention, "LINKS_TO", "Entity", uri, null)
+    TripleRow(doc, "Mention", mention, "LINKS_TO", "Entity", uri, null)
   }
 
   def buildRelation(doc: String, uuids: MMap[String, UUID], triple: RelationTriple): TripleRow = {
     val sub = uuids.getOrDefault(triple.subjectLemmaGloss(), null).toString
     val rel = triple.relationGloss().replaceAll(":", "_").toUpperCase()
     val obj = uuids.getOrDefault(triple.objectLemmaGloss(), null).toString
-    new TripleRow(doc, "Mention", sub, rel, "Mention", obj, Map("confidence" -> triple.confidenceGloss()))
+    TripleRow(doc, "Mention", sub, rel, "Mention", obj, Map("confidence" -> triple.confidenceGloss()))
   }
 }
