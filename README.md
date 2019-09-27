@@ -1,13 +1,13 @@
 # dstlr
 
-`dstlr` is a system for large-scale knowledge extraction using [Stanford CoreNLP](https://stanfordnlp.github.io/CoreNLP/), [Apache Spark](https://spark.apache.org/), and [neo4j](https://neo4j.com/). It takes a (potentially large) collection of unstructured text documents and horiztonally scales out CoreNLP via Spark to extract mentions of named entities, the relations between them, and links to an entity in an existing knowledge base. For relations of interest, we augment our extracted facts with corresponding ground-truth values from an existing knowledge base in order to reason about the quality of the text documents. From this, we generate a knowledge graph on which we can pose a number of queries via neo4j's Cypher query language to explore the text in a more structured manner.
+`dstlr` is an open-source platform for scalable, end-to-end knowledge graph construction from unstructured text. The platform takes a collection of documents, extracts mentions and relations to populate a raw knowledge graph, links mentions to entities in Wikidata, and then enriches the knowledge graph with facts from Wikidata.
+See [`dstlr.ai`](http://dstlr.ai/) for an overview of the platform.
 
-We can discover a number of different scenarios relating facts asserted in documents to facts present in the knowledge base:
-+ Supporting information - agreement between value in document and ground-truth from knowledge base
-+ Inconsistent information - disagreement between value in document and ground-truth from knowledge base
-+ Missing information - document contains information missing in knowledge base
-
-Currently, we use Wikidata as a stand-in knowledge base as the source of ground-truth and extract relations from nearly 600,000 Washington Post news articles. We extract 5,405,447 relations and 27,004,318 entity mentions (linking to 324,094 Wikidata entities).
+The current `dstlr` demo "distills" the [TREC Washington Post Corpus](https://trec.nist.gov/data/wapost/) containing around 600K documents into a raw knowledge graph comprised of approximately 97M triples, enriched with facts from Wikidata for the 324K distinct entities discovered in the corpus.
+On top of thos knowledge graph, we have implemented a subgraph-matching approach to align extracted relations with facts from Wikidata using the declarative Cypher query language.
+This simple demo shows that fact verification, locating textual support for asserted facts, detecting inconsistent and missing facts, and extracting distantly-supervised training data can all be performed within the same framework.
+ 
+This readme provies instructions on how to replicate our work.
 
 # Setup
 
