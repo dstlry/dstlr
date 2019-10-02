@@ -61,30 +61,36 @@ Note that each script will need to be modified based on your environment (e.g., 
 
 ## Data Cleaning Queries
 
-Find CITY_OF_HEADQUARTERS relation between two mentions:
+### Supporting Information
+
+This query finds sub-graphs where the value extracted from the document matches the ground-truth from Wikidata.
+
 ```
-MATCH (d:Document)-->(s:Mention)-->(r:Relation {type: "CITY_OF_HEADQUARTERS"})-->(o:Mention)
+MATCH (d:Document)-->(s:Mention)-->(r:Relation {type: "ORG_CITY_OF_HEADQUARTERS"})-->(o:Mention)
 MATCH (s)-->(e:Entity)-->(f:Fact {relation: r.type})
+WHERE o.span = f.value
 RETURN d, s, r, o, e, f
-LIMIT 25
 ```
 
-Find CITY_OF_HEADQUARTERS relation between two mentions where the subject node doesn't have a linked entity:
+### Inconsistent Information
+
+This query finds sub-graphs where the value extracted from the document does not match the ground-truth from Wikidata.
+
 ```
-MATCH (d:Document)-->(s:Mention)-->(r:Relation {type: "CITY_OF_HEADQUARTERS"})-->(o:Mention)
-OPTIONAL MATCH (s)-->(e:Entity)
-WHERE e IS NULL
-RETURN d, s, r, o, e
-LIMIT 25
+MATCH (d:Document)-->(s:Mention)-->(r:Relation {type: "ORG_CITY_OF_HEADQUARTERS"})-->(o:Mention)
+MATCH (s)-->(e:Entity)-->(f:Fact {relation: r.type})
+WHERE NOT(o.span = f.value)
+RETURN d, s, r, o, e, f
 ```
 
 ### Missing Information
-Find CITY_OF_HEADQUARTERS relation between two mentions where the linked entity doesn't have the relation we're looking for:
+
+This query finds sub-graphs where the value extracted from the document does not have a corresponding ground-truth in Wikidata.
+
 ```
-MATCH (d:Document)-->(s:Mention)-->(r:Relation {type: "CITY_OF_HEADQUARTERS"})-->(o:Mention)
+MATCH (d:Document)-->(s:Mention)-->(r:Relation {type: "ORG_CITY_OF_HEADQUARTERS"})-->(o:Mention)
 MATCH (s)-->(e:Entity)
 OPTIONAL MATCH (e)-->(f:Fact {relation: r.type})
 WHERE f IS NULL
 RETURN d, s, r, o, e, f
-LIMIT 25
 ```
