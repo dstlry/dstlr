@@ -23,7 +23,7 @@ Download and build [Anserini](http://anserini.io) and then follow the [Solrini](
 
 Start a neo4j instance via Docker with the command:
 ```bash
-docker run -d --publish=7474:7474 --publish=7687:7687 \
+docker run -d --name neo4j --publish=7474:7474 --publish=7687:7687 \
     --volume=`pwd`/neo4j:/data \
     -e NEO4J_dbms_memory_pagecache_size=2G \
     -e NEO4J_dbms_memory_heap_initial__size=4G \
@@ -32,6 +32,8 @@ docker run -d --publish=7474:7474 --publish=7687:7687 \
 ```
 
 Note: You may wish to update the memory settings based on the amount of available memory on your machine.
+
+neo4j should should be available shortly at [http://localhost:7474/](http://localhost:7474/) with the default username/password of `neo4j`/`neo4j`. You will be prompted to change the password, this is the password you will pass to the load script.
 
 In order for efficient inserts and queries, build the following indexes in neo4j:
 ```
