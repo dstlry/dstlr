@@ -61,6 +61,8 @@ Note that each script will need to be modified based on your environment (e.g., 
 
 ## Data Cleaning Queries
 
+The following queries can be run against the knowledge graph in neo4j to discover sub-graphs of interest.
+
 ### Supporting Information
 
 This query finds sub-graphs where the value extracted from the document matches the ground-truth from Wikidata.
