@@ -11,7 +11,19 @@ Currently, we use Wikidata as a stand-in knowledge base as the source of ground-
 
 # Setup
 
-[sbt](https://www.scala-sbt.org/) is the build tool used for Scala projects, download it and run `sbt assembly` to build the JAR.
+Clone [dstlr](https://github.com/dstlry/dstlr):
+
+```
+git clone https://github.com/dstlry/dstlr.git
+```
+
+[sbt](https://www.scala-sbt.org/) is the build tool used for Scala projects, download it if you don't have it yet.
+
+Build the JAR using sbt:
+
+```
+sbt assembly
+````
 
 There is a [known issue](https://github.com/stanfordnlp/CoreNLP/issues/556) between recent Spark versions and CoreNLP 3.8. To fix this, delete the `protobuf-java-2.5.0.jar` file in `$SPARK_HOME/jars` and replace it with [version 3.0.0](https://repo1.maven.org/maven2/com/google/protobuf/protobuf-java/3.0.0/protobuf-java-3.0.0.jar).
 
@@ -25,6 +37,12 @@ Clone [Anserini](http://anserini.io):
 git clone https://github.com/castorini/anserini.git
 
 cd anserini
+```
+
+Change the [config file](https://github.com/castorini/anserini/blob/master/src/main/resources/solr/anserini/conf/managed-schema#L521) so that "contents" would be searchable and stored:
+
+```
+sed -i.bak 's/field name="contents" type="text_en_anserini" indexed="true" stored="false" multiValued="false"/field name="contents" type="text_en_anserini" indexed="true" stored="true" multiValued="false"/g' src/main/resources/solr/anserini/conf/managed-schema
 ```
 
 Build Anserini using Maven:
@@ -61,7 +79,9 @@ Solr should now be available at [http://localhost:8983/](http://localhost:8983/)
 
 ### Indexing into SolrCloud from Anserini
 
-Index a document collection with Anserini, and ensure the appropriate Solr [command-line parameters](https://github.com/dstlry/dstlr/blob/master/src/main/scala/io/dstlr/package.scala) for `dstlr` are adjusted if use non-default options.
+Index a document collection with Anserini, and ensure the appropriate Solr [command-line parameters](https://github.com/dstlry/dstlr/blob/master/src/main/scala/io/dstlr/package.scala) for `dstlr` are adjusted if use non-default options. 
+
+Note: Remember to always rebuild the JAR by running `sbt assembly` if any changes are made to [command-line parameters](https://github.com/dstlry/dstlr/blob/master/src/main/scala/io/dstlr/package.scala).
 
 We'll index [Washington Post collection](https://github.com/castorini/anserini/blob/master/docs/regressions-core18.md) as an example.
 First, create the `core18` collection in Solr:
