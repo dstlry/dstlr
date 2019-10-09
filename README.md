@@ -11,15 +11,94 @@ Currently, we use Wikidata as a stand-in knowledge base as the source of ground-
 
 # Setup
 
-[sbt](https://www.scala-sbt.org/) is the build tool used for Scala projects, download it and run `sbt assembly` to build the JAR.
+Clone [dstlr](https://github.com/dstlry/dstlr):
+
+```
+git clone https://github.com/dstlry/dstlr.git
+```
+
+[sbt](https://www.scala-sbt.org/) is the build tool used for Scala projects, download it if you don't have it yet.
+
+Build the JAR using sbt:
+
+```
+sbt assembly
+````
 
 There is a [known issue](https://github.com/stanfordnlp/CoreNLP/issues/556) between recent Spark versions and CoreNLP 3.8. To fix this, delete the `protobuf-java-2.5.0.jar` file in `$SPARK_HOME/jars` and replace it with [version 3.0.0](https://repo1.maven.org/maven2/com/google/protobuf/protobuf-java/3.0.0/protobuf-java-3.0.0.jar).
 
-## anserini
+## Anserini
 
-Download and build [Anserini](http://anserini.io) and then follow the [Solrini](https://github.com/castorini/anserini/blob/master/docs/solrini.md) instructions to get a Solr instance running for indexing text documents. Index a document collection with Anserini, such as the Washington Post collection, and ensure the appropriate Solr [command-line parameters](https://github.com/dstlry/dstlr/blob/master/src/main/scala/io/dstlr/package.scala) for `dstlr` are adjusted if use non-default options.
+### Download and build Anserini
 
-Note that `core18` should be indexed with the `-storeTransformedDocs` flag instead of the `-storeRawDocs` flag.
+Clone [Anserini](http://anserini.io):
+
+```
+git clone https://github.com/castorini/anserini.git
+
+cd anserini
+```
+
+Change the [config file](https://github.com/castorini/anserini/blob/master/src/main/resources/solr/anserini/conf/managed-schema#L521) so that "contents" would be searchable and stored:
+
+```
+sed -i.bak 's/field name="contents" type="text_en_anserini" indexed="true" stored="false" multiValued="false"/field name="contents" type="text_en_anserini" indexed="true" stored="true" multiValued="false"/g' src/main/resources/solr/anserini/conf/managed-schema
+```
+
+Build Anserini using Maven:
+
+```
+mvn clean package appassembler:assemble
+```
+
+### Setting up a SolrCloud Instance for indexing text documents
+
+From the Solr [archives](https://archive.apache.org/dist/lucene/solr/), find the Solr version that matches Anserini's [Lucene version](https://github.com/castorini/anserini/blob/master/pom.xml#L36), download the `solr-[version].tgz` (non `-src`), and move it into the `anserini/` directory.
+
+Extract the archive:
+
+```
+mkdir solrini && tar -zxvf solr*.tgz -C solrini --strip-components=1
+```
+
+Start Solr:
+
+```
+solrini/bin/solr start -c -m 8G
+```
+
+Note: Adjust memory usage (i.e., `-m 8G` as appropriate).
+
+Run the Solr bootstrap script to copy the Anserini JAR into Solr's classpath and upload the configsets to Solr's internal ZooKeeper:
+
+```
+pushd src/main/resources/solr && ./solr.sh ../../../../solrini localhost:9983 && popd
+```
+   
+Solr should now be available at [http://localhost:8983/](http://localhost:8983/) for browsing.
+
+### Indexing document collections into SolrCloud from Anserini
+
+We'll index [Washington Post collection](https://github.com/castorini/anserini/blob/master/docs/regressions-core18.md) as an example.
+
+First, create the `core18` collection in Solr:
+
+```
+solrini/bin/solr create -n anserini -c core18
+```
+
+Run the Solr indexing command for `core18`:
+
+```
+sh target/appassembler/bin/IndexCollection -collection WashingtonPostCollection -generator WapoGenerator \
+   -threads 8 -input /path/to/WashingtonPost \
+   -solr -solr.index core18 -solr.zkUrl localhost:9983 \
+   -storePositions -storeDocvectors -storeTransformedDocs
+```
+
+Note: Make sure `/path/to/WashingtonPost` is updated with the appropriate path.
+
+Once indexing has completed, you should be able to query `core18` from the Solr [query interface](http://localhost:8983/solr/#/core18/query).
 
 ## neo4j
 
@@ -55,11 +134,65 @@ CREATE INDEX ON :Relation(type, confidence)
 
 ## Running
 
-* Run `ExtractTriples` via the `bin/extract.sh` script.
-* Run `EnrichTriples` via the `bin/enrich.sh` script.
-* Run `LoadTriples` on each of the output folders produced from the above commands (`triples` and `triples-enriched`) via the `bin/load.sh` script.
+### Extraction
 
-Note that each script will need to be modified based on your environment (e.g., available memory, number of executors, Solr, etc.) - options available [here](src/main/scala/io/dstlr/package.scala).
+For each document in the collection, we extract mentions of named entities, the relations between them, and links to entities in an external knowledge graph.
+
+Run `ExtractTriples`:
+
+```
+./bin/extract.sh
+```
+
+Note: Modify `extract.sh` based on your environment (e.g., available memory, number of executors, Solr, neo4j password, etc.) - options available [here](src/main/scala/io/dstlr/package.scala).
+
+After the extraction is done, check if an output folder (called `triples/` by default) is created, and several Parquet files are generated inside the output folder.
+
+If you want to inspect the Parquet file:
+
+- Download  and build [parquet-tools](https://github.com/apache/parquet-mr/tree/master/parquet-tools) following instructions.
+
+Note: If you are on Mac, you could also install it with Homebrew `brew install parquet-tools`.
+
+- View the Parquet file in JSON format:
+
+```
+parquet-tools cat --json [filename]
+```
+
+### Enrichment
+
+We augment the raw knowledge graph with facts from the external knowledge graph (Wikidata in our case).
+
+Run `EnrichTriples`:
+
+```
+./bin/enrich.sh
+```
+
+Note: Modify `enrich.sh` based on your environment.
+
+After the enrichment is done, check if an output folder (called `triples-enriched/` by default) is created with output Parquet files.
+
+### Load
+
+Load raw knowledge graph and enriched knowledge graph produced from the above commands to neo4j.
+
+Set `--input triples` in `load.sh`, run `LoadTriples`:
+
+```
+./bin/load.sh
+```
+
+Note: Modify `load.sh` based on your environment.
+
+Set `--input triples-enriched` in `load.sh`, run `LoadTriples` again:
+
+```
+./bin/load.sh
+```
+
+Open [http://localhost:7474/](http://localhost:7474/) to view the loaded knowledge graph in neo4j.
 
 ## Data Cleaning Queries
 
@@ -97,4 +230,12 @@ MATCH (s)-->(e:Entity)
 OPTIONAL MATCH (e)-->(f:Fact {relation: r.type})
 WHERE f IS NULL
 RETURN d, s, r, o, e, f
+```
+
+### Delete Relationships
+
+This query deletes all relationships in the database.
+
+```
+MATCH (n) DETACH DELETE n
 ```
