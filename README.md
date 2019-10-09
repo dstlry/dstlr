@@ -19,6 +19,8 @@ There is a [known issue](https://github.com/stanfordnlp/CoreNLP/issues/556) betw
 
 Download and build [Anserini](http://anserini.io) and then follow the [Solrini](https://github.com/castorini/anserini/blob/master/docs/solrini.md) instructions to get a Solr instance running for indexing text documents. Index a document collection with Anserini, such as the Washington Post collection, and ensure the appropriate Solr [command-line parameters](https://github.com/dstlry/dstlr/blob/master/src/main/scala/io/dstlr/package.scala) for `dstlr` are adjusted if use non-default options.
 
+Note that `core18` should be indexed with the `-storeTransformedDocs` flag instead of the `-storeRawDocs` flag.
+
 ## neo4j
 
 Start a neo4j instance via Docker with the command:
