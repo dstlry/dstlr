@@ -77,13 +77,10 @@ pushd src/main/resources/solr && ./solr.sh ../../../../solrini localhost:9983 &&
    
 Solr should now be available at [http://localhost:8983/](http://localhost:8983/) for browsing.
 
-### Indexing into SolrCloud from Anserini
-
-Index a document collection with Anserini, and ensure the appropriate Solr [command-line parameters](https://github.com/dstlry/dstlr/blob/master/src/main/scala/io/dstlr/package.scala) for `dstlr` are adjusted if use non-default options. 
-
-Note: Remember to always rebuild the JAR by running `sbt assembly` if any changes are made to [command-line parameters](https://github.com/dstlry/dstlr/blob/master/src/main/scala/io/dstlr/package.scala).
+### Indexing document collections into SolrCloud from Anserini
 
 We'll index [Washington Post collection](https://github.com/castorini/anserini/blob/master/docs/regressions-core18.md) as an example.
+
 First, create the `core18` collection in Solr:
 
 ```
@@ -147,11 +144,17 @@ Run `ExtractTriples`:
 ./bin/extract.sh
 ```
 
-Note: Modify `extract.sh` based on your environment (e.g., available memory, number of executors, Solr, etc.) - options available [here](src/main/scala/io/dstlr/package.scala).
+Note: Modify `extract.sh` based on your environment (e.g., available memory, number of executors, Solr, neo4j password, etc.) - options available [here](src/main/scala/io/dstlr/package.scala).
 
 After the extraction is done, check if an output folder (called `triples/` by default) is created, and several Parquet files are generated inside the output folder.
 
-In case you want to view the Parquet file in JSON format:
+If you want to inspect the Parquet file:
+
+- Download  and build [parquet-tools](https://github.com/apache/parquet-mr/tree/master/parquet-tools) following instructions.
+
+Note: If you are on Mac, you could also install it with Homebrew `brew install parquet-tools`.
+
+- View the Parquet file in JSON format:
 
 ```
 parquet-tools cat --json [filename]
