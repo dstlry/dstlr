@@ -39,12 +39,6 @@ git clone https://github.com/castorini/anserini.git
 cd anserini
 ```
 
-Change the [config file](https://github.com/castorini/anserini/blob/master/src/main/resources/solr/anserini/conf/managed-schema#L521) so that "contents" would be searchable and stored:
-
-```
-sed -i.bak 's/field name="contents" type="text_en_anserini" indexed="true" stored="false" multiValued="false"/field name="contents" type="text_en_anserini" indexed="true" stored="true" multiValued="false"/g' src/main/resources/solr/anserini/conf/managed-schema
-```
-
 Build Anserini using Maven:
 
 ```
