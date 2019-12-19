@@ -103,6 +103,8 @@ object EnrichTriples {
 
     val encodedEntity = s"<https://en.wikipedia.org/wiki/${entity.replaceAll("\"", "%22").replaceAll("`", "%60")}>"
 
+    org.apache.jena.query.ARQ.init()
+
     try {
       connection = RDFConnectionFactory.connect(sparqlEndpoint)
       connection.querySelect(s"SELECT ?object WHERE { ${encodedEntity} <http://schema.org/about> ?object }", new Consumer[QuerySolution] {
