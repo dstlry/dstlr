@@ -29,70 +29,9 @@ There is a [known issue](https://github.com/stanfordnlp/CoreNLP/issues/556) betw
 
 ## Anserini
 
-### Download and build Anserini
+Download and build [Anserini](http://anserini.io).
 
-Clone [Anserini](http://anserini.io):
-
-```
-git clone https://github.com/castorini/anserini.git
-
-cd anserini
-```
-
-Build Anserini using Maven:
-
-```
-mvn clean package appassembler:assemble
-```
-
-### Setting up a SolrCloud Instance for indexing text documents
-
-From the Solr [archives](https://archive.apache.org/dist/lucene/solr/), find the Solr version that matches Anserini's [Lucene version](https://github.com/castorini/anserini/blob/master/pom.xml#L36), download the `solr-[version].tgz` (non `-src`), and move it into the `anserini/` directory.
-
-Extract the archive:
-
-```
-mkdir solrini && tar -zxvf solr*.tgz -C solrini --strip-components=1
-```
-
-Start Solr:
-
-```
-solrini/bin/solr start -c -m 8G
-```
-
-Note: Adjust memory usage (i.e., `-m 8G` as appropriate).
-
-Run the Solr bootstrap script to copy the Anserini JAR into Solr's classpath and upload the configsets to Solr's internal ZooKeeper:
-
-```
-pushd src/main/resources/solr && ./solr.sh ../../../../solrini localhost:9983 && popd
-```
-   
-Solr should now be available at [http://localhost:8983/](http://localhost:8983/) for browsing.
-
-### Indexing document collections into SolrCloud from Anserini
-
-We'll index [Washington Post collection](https://github.com/castorini/anserini/blob/master/docs/regressions-core18.md) as an example.
-
-First, create the `core18` collection in Solr:
-
-```
-solrini/bin/solr create -n anserini -c core18
-```
-
-Run the Solr indexing command for `core18`:
-
-```
-sh target/appassembler/bin/IndexCollection -collection WashingtonPostCollection -generator WapoGenerator \
-   -threads 8 -input /path/to/WashingtonPost \
-   -solr -solr.index core18 -solr.zkUrl localhost:9983 \
-   -storePositions -storeDocvectors -storeTransformedDocs
-```
-
-Note: Make sure `/path/to/WashingtonPost` is updated with the appropriate path.
-
-Once indexing has completed, you should be able to query `core18` from the Solr [query interface](http://localhost:8983/solr/#/core18/query).
+Follow the [Solrini](https://github.com/castorini/anserini/blob/master/docs/solrini.md) instructions to set up a SolrCloud instance and index a document collection into SolrCloud, such as the [TREC Washington Post Corpus](https://github.com/castorini/anserini/blob/master/docs/regressions-core18.md).
 
 ## neo4j
 
