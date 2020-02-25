@@ -71,13 +71,28 @@ CREATE INDEX ON :Relation(type, confidence)
 
 For each document in the collection, we extract mentions of named entities, the relations between them, and links to entities in an external knowledge graph.
 
-Run `ExtractTriples`:
+Run `ExtractTriples` using default options:
 
 ```
 ./bin/extract.sh
 ```
 
-Note: Modify `extract.sh` based on your environment (e.g., available memory, number of executors, Solr, neo4j password, etc.) - options available [here](src/main/scala/io/dstlr/package.scala).
+Note: Modify [extract.sh](./bin/extract.sh) based on your environment (e.g., available memory, number of executors, Solr, neo4j password, etc.) - options available [here](src/main/scala/io/dstlr/package.scala).
+
+For example, the following command does the query `music` on index `core18`, then apply `dstlr` to the top 5 hits.
+
+```
+spark-submit --class io.dstlr.ExtractTriples \
+        --num-executors 32 --executor-cores 8 \
+        --driver-memory 64G --executor-memory 48G \
+        --conf spark.executor.heartbeatInterval=10000 \
+        --conf spark.executorEnv.JAVA_HOME=/usr/lib/jvm/java-9-openjdk-amd64 \
+        target/scala-2.11/dstlr-assembly-0.1.jar \
+        --solr.uri localhost:9983 --solr.index core18 --max_rows 5 --query contents:music --partitions 2048 --output triples --sent-length-threshold 256
+```
+
+
+
 
 After the extraction is done, check if an output folder (called `triples/` by default) is created, and several Parquet files are generated inside the output folder.
 
@@ -103,7 +118,7 @@ Run `EnrichTriples`:
 ./bin/enrich.sh
 ```
 
-Note: Modify `enrich.sh` based on your environment.
+Note: Modify [enrich.sh](./bin/enrich.sh) based on your environment.
 
 After the enrichment is done, check if an output folder (called `triples-enriched/` by default) is created with output Parquet files.
 
@@ -117,7 +132,7 @@ Set `--input triples` in `load.sh`, run `LoadTriples`:
 ./bin/load.sh
 ```
 
-Note: Modify `load.sh` based on your environment.
+Note: Modify [load.sh](./bin/load.sh) based on your environment.
 
 Set `--input triples-enriched` in `load.sh`, run `LoadTriples` again:
 
@@ -136,6 +151,13 @@ The following queries can be run against the knowledge graph in neo4j to discove
 This query finds sub-graphs where the value extracted from the document matches the ground-truth from Wikidata.
 
 ```
+MATCH (d:Document)-->(s:Mention)-->(r:Relation)-->(o:Mention)
+MATCH (s)-->(e:Entity)-->(f:Fact {relation: r.type})
+WHERE o.span = f.value
+RETURN d, s, r, o, e, f
+```
+
+```
 MATCH (d:Document)-->(s:Mention)-->(r:Relation {type: "ORG_CITY_OF_HEADQUARTERS"})-->(o:Mention)
 MATCH (s)-->(e:Entity)-->(f:Fact {relation: r.type})
 WHERE o.span = f.value
@@ -147,6 +169,13 @@ RETURN d, s, r, o, e, f
 This query finds sub-graphs where the value extracted from the document does not match the ground-truth from Wikidata.
 
 ```
+MATCH (d:Document)-->(s:Mention)-->(r:Relation)-->(o:Mention)
+MATCH (s)-->(e:Entity)-->(f:Fact {relation: r.type})
+WHERE NOT(o.span = f.value)
+RETURN d, s, r, o, e, f
+```
+
+```
 MATCH (d:Document)-->(s:Mention)-->(r:Relation {type: "ORG_CITY_OF_HEADQUARTERS"})-->(o:Mention)
 MATCH (s)-->(e:Entity)-->(f:Fact {relation: r.type})
 WHERE NOT(o.span = f.value)
@@ -156,6 +185,14 @@ RETURN d, s, r, o, e, f
 ### Missing Information
 
 This query finds sub-graphs where the value extracted from the document does not have a corresponding ground-truth in Wikidata.
+
+```
+MATCH (d:Document)-->(s:Mention)-->(r:Relation)-->(o:Mention)
+MATCH (s)-->(e:Entity)
+OPTIONAL MATCH (e)-->(f:Fact {relation: r.type})
+WHERE f IS NULL
+RETURN d, s, r, o, e, f
+```
 
 ```
 MATCH (d:Document)-->(s:Mention)-->(r:Relation {type: "ORG_CITY_OF_HEADQUARTERS"})-->(o:Mention)
