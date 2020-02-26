@@ -49,22 +49,6 @@ Note: You may wish to update the memory settings based on the amount of availabl
 
 neo4j should should be available shortly at [http://localhost:7474/](http://localhost:7474/) with the default username/password of `neo4j`/`neo4j`. You will be prompted to change the password, this is the password you will pass to the load script.
 
-In order for efficient inserts and queries, build the following indexes in neo4j:
-```
-CREATE INDEX ON :Document(id)
-CREATE INDEX ON :Entity(id)
-CREATE INDEX ON :Fact(relation)
-CREATE INDEX ON :Fact(value)
-CREATE INDEX ON :Fact(relation, value)
-CREATE INDEX ON :Mention(id)
-CREATE INDEX ON :Mention(class)
-CREATE INDEX ON :Mention(index)
-CREATE INDEX ON :Mention(span)
-CREATE INDEX ON :Mention(id, class, span)
-CREATE INDEX ON :Relation(type)
-CREATE INDEX ON :Relation(type, confidence)
-```
-
 ## Running
 
 ### Extraction
@@ -157,6 +141,8 @@ WHERE o.span = f.value
 RETURN d, s, r, o, e, f
 ```
 
+In order to see only sub-graphs with a specific relationship such as "city of headquaters", run
+
 ```
 MATCH (d:Document)-->(s:Mention)-->(r:Relation {type: "ORG_CITY_OF_HEADQUARTERS"})-->(o:Mention)
 MATCH (s)-->(e:Entity)-->(f:Fact {relation: r.type})
@@ -175,13 +161,6 @@ WHERE NOT(o.span = f.value)
 RETURN d, s, r, o, e, f
 ```
 
-```
-MATCH (d:Document)-->(s:Mention)-->(r:Relation {type: "ORG_CITY_OF_HEADQUARTERS"})-->(o:Mention)
-MATCH (s)-->(e:Entity)-->(f:Fact {relation: r.type})
-WHERE NOT(o.span = f.value)
-RETURN d, s, r, o, e, f
-```
-
 ### Missing Information
 
 This query finds sub-graphs where the value extracted from the document does not have a corresponding ground-truth in Wikidata.
@@ -190,14 +169,7 @@ This query finds sub-graphs where the value extracted from the document does not
 MATCH (d:Document)-->(s:Mention)-->(r:Relation)-->(o:Mention)
 MATCH (s)-->(e:Entity)
 OPTIONAL MATCH (e)-->(f:Fact {relation: r.type})
-WHERE f IS NULL
-RETURN d, s, r, o, e, f
-```
-
-```
-MATCH (d:Document)-->(s:Mention)-->(r:Relation {type: "ORG_CITY_OF_HEADQUARTERS"})-->(o:Mention)
-MATCH (s)-->(e:Entity)
-OPTIONAL MATCH (e)-->(f:Fact {relation: r.type})
+WITH d, s, r, o, e, f
 WHERE f IS NULL
 RETURN d, s, r, o, e, f
 ```
