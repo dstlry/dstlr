@@ -175,6 +175,7 @@ object ExtractTriples {
       "collection" -> conf.solrIndex(),
       "query" -> conf.query(),
       "rows" -> conf.rows(),
+      "max_rows" -> conf.max_rows(),
       "zkhost" -> conf.solrUri()
     )
 
