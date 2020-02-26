@@ -29,70 +29,9 @@ There is a [known issue](https://github.com/stanfordnlp/CoreNLP/issues/556) betw
 
 ## Anserini
 
-### Download and build Anserini
+Download and build [Anserini](http://anserini.io).
 
-Clone [Anserini](http://anserini.io):
-
-```
-git clone https://github.com/castorini/anserini.git
-
-cd anserini
-```
-
-Build Anserini using Maven:
-
-```
-mvn clean package appassembler:assemble
-```
-
-### Setting up a SolrCloud Instance for indexing text documents
-
-From the Solr [archives](https://archive.apache.org/dist/lucene/solr/), find the Solr version that matches Anserini's [Lucene version](https://github.com/castorini/anserini/blob/master/pom.xml#L36), download the `solr-[version].tgz` (non `-src`), and move it into the `anserini/` directory.
-
-Extract the archive:
-
-```
-mkdir solrini && tar -zxvf solr*.tgz -C solrini --strip-components=1
-```
-
-Start Solr:
-
-```
-solrini/bin/solr start -c -m 8G
-```
-
-Note: Adjust memory usage (i.e., `-m 8G` as appropriate).
-
-Run the Solr bootstrap script to copy the Anserini JAR into Solr's classpath and upload the configsets to Solr's internal ZooKeeper:
-
-```
-pushd src/main/resources/solr && ./solr.sh ../../../../solrini localhost:9983 && popd
-```
-   
-Solr should now be available at [http://localhost:8983/](http://localhost:8983/) for browsing.
-
-### Indexing document collections into SolrCloud from Anserini
-
-We'll index [Washington Post collection](https://github.com/castorini/anserini/blob/master/docs/regressions-core18.md) as an example.
-
-First, create the `core18` collection in Solr:
-
-```
-solrini/bin/solr create -n anserini -c core18
-```
-
-Run the Solr indexing command for `core18`:
-
-```
-sh target/appassembler/bin/IndexCollection -collection WashingtonPostCollection -generator WapoGenerator \
-   -threads 8 -input /path/to/WashingtonPost \
-   -solr -solr.index core18 -solr.zkUrl localhost:9983 \
-   -storePositions -storeDocvectors -storeTransformedDocs
-```
-
-Note: Make sure `/path/to/WashingtonPost` is updated with the appropriate path.
-
-Once indexing has completed, you should be able to query `core18` from the Solr [query interface](http://localhost:8983/solr/#/core18/query).
+Follow the [Solrini](https://github.com/castorini/anserini/blob/master/docs/solrini.md) instructions to set up a SolrCloud instance and index a document collection into SolrCloud, such as the [TREC Washington Post Corpus](https://github.com/castorini/anserini/blob/master/docs/regressions-core18.md).
 
 ## neo4j
 
@@ -110,35 +49,34 @@ Note: You may wish to update the memory settings based on the amount of availabl
 
 neo4j should should be available shortly at [http://localhost:7474/](http://localhost:7474/) with the default username/password of `neo4j`/`neo4j`. You will be prompted to change the password, this is the password you will pass to the load script.
 
-In order for efficient inserts and queries, build the following indexes in neo4j:
-```
-CREATE INDEX ON :Document(id)
-CREATE INDEX ON :Entity(id)
-CREATE INDEX ON :Fact(relation)
-CREATE INDEX ON :Fact(value)
-CREATE INDEX ON :Fact(relation, value)
-CREATE INDEX ON :Mention(id)
-CREATE INDEX ON :Mention(class)
-CREATE INDEX ON :Mention(index)
-CREATE INDEX ON :Mention(span)
-CREATE INDEX ON :Mention(id, class, span)
-CREATE INDEX ON :Relation(type)
-CREATE INDEX ON :Relation(type, confidence)
-```
-
 ## Running
 
 ### Extraction
 
 For each document in the collection, we extract mentions of named entities, the relations between them, and links to entities in an external knowledge graph.
 
-Run `ExtractTriples`:
+Run `ExtractTriples` using default options:
 
 ```
 ./bin/extract.sh
 ```
 
-Note: Modify `extract.sh` based on your environment (e.g., available memory, number of executors, Solr, neo4j password, etc.) - options available [here](src/main/scala/io/dstlr/package.scala).
+Note: Modify [extract.sh](./bin/extract.sh) based on your environment (e.g., available memory, number of executors, Solr, neo4j password, etc.) - options available [here](src/main/scala/io/dstlr/package.scala).
+
+For example, the following command does the query `music` on index `core18`, then apply `dstlr` to the top 5 hits.
+
+```
+spark-submit --class io.dstlr.ExtractTriples \
+        --num-executors 32 --executor-cores 8 \
+        --driver-memory 64G --executor-memory 48G \
+        --conf spark.executor.heartbeatInterval=10000 \
+        --conf spark.executorEnv.JAVA_HOME=/usr/lib/jvm/java-9-openjdk-amd64 \
+        target/scala-2.11/dstlr-assembly-0.1.jar \
+        --solr.uri localhost:9983 --solr.index core18 --max_rows 5 --query contents:music --partitions 2048 --output triples --sent-length-threshold 256
+```
+
+
+
 
 After the extraction is done, check if an output folder (called `triples/` by default) is created, and several Parquet files are generated inside the output folder.
 
@@ -164,7 +102,7 @@ Run `EnrichTriples`:
 ./bin/enrich.sh
 ```
 
-Note: Modify `enrich.sh` based on your environment.
+Note: Modify [enrich.sh](./bin/enrich.sh) based on your environment.
 
 After the enrichment is done, check if an output folder (called `triples-enriched/` by default) is created with output Parquet files.
 
@@ -178,7 +116,7 @@ Set `--input triples` in `load.sh`, run `LoadTriples`:
 ./bin/load.sh
 ```
 
-Note: Modify `load.sh` based on your environment.
+Note: Modify [load.sh](./bin/load.sh) based on your environment.
 
 Set `--input triples-enriched` in `load.sh`, run `LoadTriples` again:
 
@@ -197,6 +135,15 @@ The following queries can be run against the knowledge graph in neo4j to discove
 This query finds sub-graphs where the value extracted from the document matches the ground-truth from Wikidata.
 
 ```
+MATCH (d:Document)-->(s:Mention)-->(r:Relation)-->(o:Mention)
+MATCH (s)-->(e:Entity)-->(f:Fact {relation: r.type})
+WHERE o.span = f.value
+RETURN d, s, r, o, e, f
+```
+
+In order to see only sub-graphs with a specific relationship such as "city of headquaters", run
+
+```
 MATCH (d:Document)-->(s:Mention)-->(r:Relation {type: "ORG_CITY_OF_HEADQUARTERS"})-->(o:Mention)
 MATCH (s)-->(e:Entity)-->(f:Fact {relation: r.type})
 WHERE o.span = f.value
@@ -208,7 +155,7 @@ RETURN d, s, r, o, e, f
 This query finds sub-graphs where the value extracted from the document does not match the ground-truth from Wikidata.
 
 ```
-MATCH (d:Document)-->(s:Mention)-->(r:Relation {type: "ORG_CITY_OF_HEADQUARTERS"})-->(o:Mention)
+MATCH (d:Document)-->(s:Mention)-->(r:Relation)-->(o:Mention)
 MATCH (s)-->(e:Entity)-->(f:Fact {relation: r.type})
 WHERE NOT(o.span = f.value)
 RETURN d, s, r, o, e, f
@@ -219,9 +166,10 @@ RETURN d, s, r, o, e, f
 This query finds sub-graphs where the value extracted from the document does not have a corresponding ground-truth in Wikidata.
 
 ```
-MATCH (d:Document)-->(s:Mention)-->(r:Relation {type: "ORG_CITY_OF_HEADQUARTERS"})-->(o:Mention)
+MATCH (d:Document)-->(s:Mention)-->(r:Relation)-->(o:Mention)
 MATCH (s)-->(e:Entity)
 OPTIONAL MATCH (e)-->(f:Fact {relation: r.type})
+WITH d, s, r, o, e, f
 WHERE f IS NULL
 RETURN d, s, r, o, e, f
 ```
