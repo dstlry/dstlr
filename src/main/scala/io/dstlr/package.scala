@@ -20,12 +20,13 @@ package object dstlr {
     val output = opt[String](default = Some("triples"))
 
     // Solr
-    val solr = opt[Boolean](default = Some(false))
+    val solr = opt[Boolean](default = Some(true))
     val solrUri = opt[String](name = "solr.uri", default = Some("localhost:9983"))
     val solrIndex = opt[String](name = "solr.index", default = Some("core18"))
     val query = opt[String](name = "query", default = Some("*:*"))
     val fields = opt[String](name = "fields", default = Some("id,contents"))
-    val rows = opt[String](default = Some("10000"))
+    val rows = opt[String](default = Some("10000")) // page size (i.e. number of rows to retrieve from Solr per request)
+    val max_rows = opt[String](default = Some("10000")) // maximum number of rows to read from Solr
     val partitions = opt[Int](default = Some(8))
     val sentLengthThreshold = opt[Int](default = Some(128))
 
